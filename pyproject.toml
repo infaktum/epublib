@@ -1,0 +1,38 @@
+# File: `pyproject.toml`
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epublib"
+version = "0.1.0"
+description = "A Python library for reading and writing EPUB files."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Heiko Sippel", email = "heiko.sippel@gmail.com" }]
+dependencies = []
+
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Operating System :: OS Independent",
+]
+
+keywords = ["epub", "epub3", "ebook", "markdown", "epub-generator"]
+
+[project.urls]
+Homepage = "https://github.com/infaktum/epublib"
+Repository = "https://github.com/infaktum/epublib"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["epublib*"]
+
+
+
+[project.scripts]
+epub = "epublib.__main__:main"
+

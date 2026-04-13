@@ -1,0 +1,43 @@
+/* styles.css */
+blockquote {
+    font-style: italic;
+    position: relative;
+    margin-left: 2em;
+    padding-left: 1.5em;
+    color: #333;
+}
+
+blockquote::before {
+    content: "“";
+    font-size: 2em;
+    color: #5dade2;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+pre, code {
+    background-color: #333;
+    color: #fff;
+    font-family: 'Courier New', Courier, monospace;
+    padding: 0.8em 1em;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.9em;
+}
+
+blockquote::after {
+    content: "”";
+    font-size: 2em;
+    color: #5dade2;
+    margin-left: 0.3em;
+    position: static;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #5dade2;
+}
+
+.red{
+    color: red;
+}
