@@ -20,15 +20,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import re
 import os
-
-import zipfile
+import re
 import tempfile
+import zipfile
+
 from lxml import etree
+
 from pypublib.book import Book, Chapter, Opf, NS
 
-#------------------------------------- Templates -----------------------
+# ------------------------------------- Templates -----------------------
 
 # XML template for EPUB container file
 TEMPLATE_CONTAINER = '''<?xml version="1.0"?>
@@ -38,7 +39,8 @@ TEMPLATE_CONTAINER = '''<?xml version="1.0"?>
   </rootfiles>
 </container>'''
 
-#------------------------------ EPUB Reading and Creation -----------------
+
+# ------------------------------ EPUB Reading and Creation -----------------
 
 def read_book(file_path: str) -> Book | None:
     """
@@ -96,6 +98,7 @@ def read_book(file_path: str) -> Book | None:
 
     return None
 
+
 def create_book(contents):
     """
     Create a Book object from extracted EPUB contents.
@@ -126,6 +129,7 @@ def create_book(contents):
         book.cover = contents['cover']
 
     return book
+
 
 def extract_epub_content(file_path):
     """
@@ -192,7 +196,8 @@ def extract_epub_content(file_path):
         'cover': cover
     }
 
-#----------------------------------- EPUB Writing -----------------------
+
+# ----------------------------------- EPUB Writing -----------------------
 
 def publish_book(book: Book, file_path):
     """
@@ -208,6 +213,7 @@ def publish_book(book: Book, file_path):
         :func:`save_book` for the actual implementation.
     """
     save_book(book, file_path)
+
 
 def save_book(book: Book, file_path):
     """
@@ -300,28 +306,37 @@ def save_book(book: Book, file_path):
 
     print(f"Book has been saved as {file_path}")
 
-#------------------------------- Validation -----------------------
+
+# ------------------------------- Validation -----------------------
+
+
+# ------------------------------- Validation -----------------------
 
 
 def validate_metadata(book):
     """
-    Validate that a book has required and optional metadata fields.
+      Validate that a book has required and optional metadata fields.
 
-    Checks for mandatory fields (title, creator) and optional fields
-    (language, subject).
+      Checks for mandatory fields (title, creator) and optional fields
+      (language, subject).
 
-    Args:
-        book (Book): The Book instance to validate.
+      Args:
+          book (Book): The Book instance to validate.
 
-    Returns:
-        tuple: A tuple of (missing_mandatory, missing_optional) where each is
-            a list of field names.
+      Returns:
+          tuple: A tuple of (missing_mandatory, missing_optional) where each is
+              a list of field names.
 
-    Example:
-        >>> mandatory, optional = validate_metadata(book)
-        >>> if mandatory:
-        ...     print(f"Missing mandatory fields: {mandatory}")
-    """
+      Example:
+          >>> mandatory, optional = validate_metadata(book)
+          >>> if mandatory:
+          ...     print(f"Missing mandatory fields: {mandatory}")
+      """
+    mandatory_metadata = ["title", "creator"]
+    optional_metadata = ["language", "subject"]
+    missing_mandatory = [field for field in mandatory_metadata if not field in book.metadata]
+    missing_optional = [field for field in optional_metadata if not field in book.metadata]
+    return missing_mandatory, missing_optional
 
 
 def validate_toc(book):
@@ -334,6 +349,12 @@ def validate_toc(book):
     Raises:
         ValueError: If TOC is empty or contains references to non-existent chapters.
     """
+    if not book.toc:
+        raise ValueError("Table of content (TOC) is empty.")
+    for entry in book.toc:
+        if not any(chapter.src == entry.src for chapter in book.chapters):
+            raise ValueError(f"Toc entry references invalid chapter: {entry.src}")
+
 
 def validate_chapters(book):
     """
@@ -345,6 +366,9 @@ def validate_chapters(book):
     Raises:
         ValueError: If any chapter is missing a title or HTML content.
     """
+    for chapter in book.chapters:
+        if not chapter.title or not chapter.html:
+            raise ValueError(f"Invalid chapter: {chapter}")
 
 
 def validate_book(book: Book) -> list:
@@ -390,7 +414,7 @@ def validate_book(book: Book) -> list:
             issues.append(f"Chapter titled '{chapter.title}' is missing an href.")
 
     # Validate metadata
-    metadata_issues,_ = validate_metadata(book)
+    metadata_issues, _ = validate_metadata(book)
     if metadata_issues:
         issues.append(f'Book is missing required metadata fields: {", ".join(metadata_issues)}.')
 
@@ -416,8 +440,25 @@ def validate_book_resources(book):
             - 'missing_images': List of missing image filenames
             - 'missing_styles': List of missing stylesheet filenames
     """
+    missing = []
+    book_images = set(book.images.keys())
+    book_styles = set(book.styles.keys())
 
-#-------------------------- Editing Utilities --------------------
+    for chapter in book.chapters.values():
+        chapter_images = set(chapter.images)
+        chapter_styles = set(chapter.styles)
+
+        missing_images = chapter_images - book_images
+        missing_styles = chapter_styles - book_styles
+
+        if missing_images or missing_styles:
+            missing.append({"chapter": chapter.title, "missing_images": list(missing_images),
+                            "missing_styles": list(missing_styles)})
+
+    return missing
+
+
+# -------------------------- Editing Utilities --------------------
 
 def edit_chapter(chapter: Chapter, replacements) -> None:
     """
@@ -437,6 +478,7 @@ def edit_chapter(chapter: Chapter, replacements) -> None:
             content = content.replace(old, new)
     chapter.content = content
 
+
 def edit_chapters(chapter: list[Chapter], replacements) -> None:
     """
     Apply replacements to a list of chapters.
@@ -450,6 +492,7 @@ def edit_chapters(chapter: list[Chapter], replacements) -> None:
     """
     for chap in chapter:
         edit_chapter(chap, replacements)
+
 
 def edit_all_chapters(book: Book, replacements: list) -> None:
     """
@@ -465,6 +508,7 @@ def edit_all_chapters(book: Book, replacements: list) -> None:
         >>> edit_all_chapters(book, ["Chapter=Section", "Old=New"])
     """
     edit_chapters(book.chapters.values(), replacements)
+
 
 def edit_chapter_tag(chapter, tag, element, old_value, value) -> None:
     """
@@ -493,6 +537,7 @@ def edit_chapter_tag(chapter, tag, element, old_value, value) -> None:
                 el.set(element, attr.replace(old_value, value))
     chapter.html = Chapter.serialize(doc)
 
+
 def edit_chapter_tags(chapter, replacements):
     """
     Replace values in specific tags in chapter content using regex patterns.
@@ -515,11 +560,13 @@ def edit_chapter_tags(chapter, replacements):
                 tag, old, new = parts
                 # Only replace value inside the tag
                 pattern = rf'(<{tag}[^>]*>)(.*?)(</{tag}>)'
-                content = re.sub(pattern, lambda m: m.group(1) + m.group(2).replace(old, new) + m.group(3), content, flags=re.DOTALL)
+                content = re.sub(pattern, lambda m: m.group(1) + m.group(2).replace(old, new) + m.group(3), content,
+                                 flags=re.DOTALL)
     chapter.html = content
     return chapter
 
-#---------------------------------- CSS Cleaning Utilities -----------------
+
+# ---------------------------------- CSS Cleaning Utilities -----------------
 
 
 def collect_used_selectors(content_dir):
@@ -548,6 +595,7 @@ def collect_used_selectors(content_dir):
                         if match[1]:
                             used_selectors.add('#' + match[1])
     return used_selectors
+
 
 def process_css_file(css_path, used_selectors):
     """
@@ -578,6 +626,7 @@ def process_css_file(css_path, used_selectors):
         f.write(new_css)
     print(f"Removed selectors from {css_path}: {removed_selectors}")
     return removed_selectors
+
 
 def clean_unused_styles(content_dir):
     """
@@ -648,22 +697,15 @@ def remove_unused_styles(book: Book) -> Book:
     return book
 
 
-#----------------------------- Formatting Utilities -------------------
-
-def pretty_print_xml(xml: str) -> str:
+def pretty_print_xml(xml):
     """
-    Create a pretty-printed XML string from the given XML string.
-
-    Currently returns the XML as-is. Can be extended to use lxml's pretty_print
-    functionality if needed in the future.
+    Formats an XML string into a nice format.
+    At the moment unimplemented.
 
     Args:
         xml (str): XML string to format.
 
     Returns:
         str: Formatted XML string.
-
-    Note:
-        This is a placeholder function. Consider implementing proper XML
-        pretty printing with lxml.etree if formatting is needed.
     """
+    return xml

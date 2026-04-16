@@ -247,14 +247,14 @@ class Html:
         return '&nbsp;' * count
 
     @staticmethod
-    def pagebreak(id: int = 1) -> str:
+    def pagebreak(id_: int = 1) -> str:
         """
         Generate a page break element.
 
         Creates a CSS-based page break that works in EPUB readers.
 
         Args:
-            id (int, optional): Identifier for the page break (for reference). Defaults to 1.
+            id_ (int, optional): Identifier for the page break (for reference). Defaults to 1.
 
         Returns:
             str: HTML div element with page-break styling.

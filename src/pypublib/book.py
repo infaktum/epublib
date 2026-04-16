@@ -20,16 +20,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import uuid
 import re
-from string import Template
+import uuid
 from os.path import splitext, basename
-from lxml import etree
+from string import Template
+
 import lxml.html as lhtml
+from lxml import etree
 
 # ---------------------------- Template for a Cover Page -----------------------------------
 
-TEMPLATE_COVER="""<?xml version='1.0' encoding='utf-8'?>
+TEMPLATE_COVER = """<?xml version='1.0' encoding='utf-8'?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" lang="de" xml:lang="de">
   <head>
@@ -54,9 +55,10 @@ TEMPLATE_CHAPTER = """<?xml version='1.0' encoding='utf-8'?>
 </html>
 """
 
-#---------------------------- XML Namespace -----------------------------------
+# ---------------------------- XML Namespace -----------------------------------
 
 NS = {"x": "http://www.w3.org/1999/xhtml"}
+
 
 # ---------------------------- EPUB Chapter Class -----------------------------------
 
@@ -148,8 +150,10 @@ class Chapter:
             doc = etree.fromstring(html.encode("utf-8"))
         except etree.ParserError as e:
             raise ValueError(f"Invalid HTML: {e}") from e
-        title = (doc.find(".//x:title", namespaces=NS).text or "") if doc.find(".//x:title", namespaces=NS) is not None else ""
-        styles = [link.get("href")for link in doc.findall(".//x:link[@rel='stylesheet']", namespaces=NS) if link.get("href") ]
+        title = (doc.find(".//x:title", namespaces=NS).text or "") if doc.find(".//x:title",
+                                                                               namespaces=NS) is not None else ""
+        styles = [link.get("href") for link in doc.findall(".//x:link[@rel='stylesheet']", namespaces=NS) if
+                  link.get("href")]
         content = etree.tostring(doc.find(".//x:body", namespaces=NS), encoding="utf-8", method="html").decode("utf-8") \
             if doc.find(".//x:body", namespaces=NS) is not None else ""
         return cls.from_content(href, title, content, styles)
@@ -184,7 +188,6 @@ class Chapter:
         content = lhtml.tostring(body_el, encoding="unicode", method="html") if body_el is not None else ""
         return cls.from_content(href, title, content, styles)
 
-
     @classmethod
     def from_cover(cls, name: str) -> "Chapter":
         """
@@ -198,7 +201,7 @@ class Chapter:
         Returns:
             Chapter: A new Chapter instance with cover styling applied.
         """
-        html = Template(TEMPLATE_COVER).substitute(cover = name)
+        html = Template(TEMPLATE_COVER).substitute(cover=name)
         return cls.from_xhtml("Cover.xhtml", html)
 
     # Head management
@@ -215,7 +218,7 @@ class Chapter:
         if style not in self.styles:
             self.styles.append(style)
 
-    # Content management
+    # ----------------------------------- Content management -------------------------------------------
 
     @property
     def html(self) -> str:
@@ -232,6 +235,16 @@ class Chapter:
         body = self.content or ""
         html = Template(TEMPLATE_CHAPTER).substitute(title=self.title, styles=stylesheets, body=body)
         return html
+
+    @html.setter
+    def html(self, page: str) -> None:
+        """
+        Sets the full chapter HTML including HEAD and BODY.
+
+        Returns:
+            str: Complete XHTML document as string.
+        """
+        self.html = page
 
     @property
     def title(self) -> str:
@@ -310,7 +323,7 @@ TEMPLATE_NAV = f'''<?xml version="1.0" encoding="utf-8"?>
 </html>
 '''
 
-#----------------------------- Template for TOC NCX -----------------------------------
+# ----------------------------- Template for TOC NCX -----------------------------------
 
 TEMPLATE_TOC = f'''<?xml version="1.0" encoding="UTF-8"?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
@@ -328,7 +341,7 @@ TEMPLATE_TOC = f'''<?xml version="1.0" encoding="UTF-8"?>
   </navMap>
 </ncx>'''
 
-#-----------------------------  Template for EPUB OPF  -----------------------------
+# -----------------------------  Template for EPUB OPF  -----------------------------
 
 TEMPLATE_OPF = """<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
@@ -348,6 +361,7 @@ TEMPLATE_OPF = """<?xml version="1.0" encoding="UTF-8"?>
 
 DC_METADATA = ['title', 'creator', 'description', 'date', 'language', 'publisher', 'identifier']
 CALIBRE_METADATA = ['series', 'series_index']
+
 
 # ---------------------------------- EPUB Book Class ---------------------------------------------
 
@@ -402,7 +416,6 @@ class Book:
         if not self.identifier:
             self.identifier = "pypublib:" + str(uuid.uuid4())
         self.add_metadata("generator", "pypublib 0.1.0")
-
 
     def from_contents(self, contents: dict) -> None:
         """
@@ -764,9 +777,9 @@ class Book:
         if "subject" not in self.metadata:
             self.metadata["subject"] = set()
 
-        subjects = subjects if isinstance(subjects,tuple) else (subjects,)
+        subjects = subjects if isinstance(subjects, tuple) else (subjects,)
         for subject in subjects:
-            if subject.strip() :
+            if subject.strip():
                 self.metadata["subject"].add(subject.strip())
 
     # Calibre/extended metadata
@@ -814,8 +827,8 @@ class Book:
         self.metadata[key] = value
 
     def set_metadata(
-        self, creator=None, title=None, language="de", identifier=None,
-        description=None, publisher=None, date=None):
+            self, creator=None, title=None, language="de", identifier=None,
+            description=None, publisher=None, date=None):
         """
         Bulk metadata setter for common Dublin Core metadata.
 
@@ -864,7 +877,7 @@ class Book:
             f'<li><a href="{chapter.href}">{chapter.title}</a></li>'
             for _, chapter in self.chapters.items()
         )
-        nav = Template(TEMPLATE_NAV).substitute(title=title,nav_items=nav_items)
+        nav = Template(TEMPLATE_NAV).substitute(title=title, nav_items=nav_items)
         return nav
 
     # Table of contents properties
@@ -904,7 +917,8 @@ class Book:
         <content src="{chapter.href}"/>
         </navPoint>"""
 
-        toc = Template(TEMPLATE_TOC).substitute(book_id=getattr(self, "uid", "bookid"), title=title, nav_points=nav_points)
+        toc = Template(TEMPLATE_TOC).substitute(book_id=getattr(self, "uid", "bookid"), title=title,
+                                                nav_points=nav_points)
 
         return toc
 
@@ -936,7 +950,8 @@ class Book:
         manifest += [{"id": f"{splitext(href)[0]}", "href": href, "media-type": f"image/{splitext(href)[1][1:]}",
                       **({"properties": "cover-image"} if self.cover and href == self.cover else {})} for href in
                      self.images]
-        manifest += [{"id": f"{splitext(href)[0]}", "href": href, "media-type": f"font/{splitext(href)[1][1:]}"} for i, href
+        manifest += [{"id": f"{splitext(href)[0]}", "href": href, "media-type": f"font/{splitext(href)[1][1:]}"} for
+                     i, href
                      in enumerate(self.fonts)]
         return manifest
 
@@ -964,7 +979,7 @@ class Book:
             f'<dc:{key}>{value}</dc:{key}>' for key, value in self.metadata.items() if value and key in DC_METADATA)
 
         metadata_items += "\n".join(
-            f'<dc:subject>{value}</dc:subject>' for value in self.subject )
+            f'<dc:subject>{value}</dc:subject>' for value in self.subject)
 
         metadata_items += "\n".join(
             f'<meta name = "calibre:{key}" content = "{value}"/>' for key, value in self.metadata.items() if
@@ -988,7 +1003,9 @@ class Book:
             self.guide) + "</guide>" if self.guide and len(self.guide) else ""
 
         opf = TEMPLATE_OPF.replace("$metadata_items", metadata_items).replace("$manifest_items",
-                               manifest_items).replace("$spine_items", spine_items).replace("$guide", guide)
+                                                                              manifest_items).replace("$spine_items",
+                                                                                                      spine_items).replace(
+            "$guide", guide)
 
         return opf
 
@@ -1008,7 +1025,7 @@ class Book:
         )
 
 
-#------------------------------------ OPF Parser -------------------
+# ------------------------------------ OPF Parser -------------------
 
 class Opf:
     """
