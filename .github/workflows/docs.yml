@@ -1,4 +1,4 @@
-name: Build and deploy documentation
+name: Build and deploy sphinx documentation
 
 on:
   push:
@@ -61,6 +61,14 @@ jobs:
         with:
           path: docs/_build/html
 
+  deploy:
+    environment: github-pages
+    needs: build
+
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
+
+
 
