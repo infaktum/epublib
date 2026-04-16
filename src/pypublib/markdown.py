@@ -25,127 +25,339 @@ import re
 # ------------------------------------- Html -------------------------------------
 
 class Html:
-    """Generates HTML content"""
+    """
+    Generator for common HTML elements.
+
+    Provides static methods for creating HTML elements from Python strings.
+    Useful for building HTML content programmatically.
+    """
 
     @staticmethod
     def p(text, class_name=None):
-        """Generates an HTML paragraph."""
+        """
+        Generate an HTML paragraph element.
+
+        Args:
+            text (str): The paragraph text content.
+            class_name (str, optional): CSS class name to apply. Defaults to None.
+
+        Returns:
+            str: HTML paragraph string.
+
+        Example:
+            >>> Html.p("Hello world")
+            '<p>Hello world</p>'
+            >>> Html.p("Styled", class_name="intro")
+            '<p class="intro">Styled</p>'
+        """
         class_attr = f' class="{class_name}"' if class_name else ''
         return f'<p{class_attr}>{text}</p>'
 
     @staticmethod
     def strong(text):
-        """Replaces text with <strong>."""
+        """
+        Generate HTML strong (bold) element.
+
+        Args:
+            text (str): The text to make bold.
+
+        Returns:
+            str: HTML strong element string.
+        """
         return f'<strong>{text}</strong>'
 
     @staticmethod
     def em(text):
-        """Replaces text <em>."""
+        """
+        Generate HTML emphasis (italic) element.
+
+        Args:
+            text (str): The text to emphasize.
+
+        Returns:
+            str: HTML emphasis element string.
+        """
         return f'<em>{text}</em>'
 
     @staticmethod
     def header(text, level=1):
-        """Generates an HTML header."""
+        """
+        Generate an HTML header element.
+
+        Args:
+            text (str): The header text content.
+            level (int, optional): Header level (1-6). Defaults to 1.
+
+        Returns:
+            str: HTML header element string (e.g., '<h1>...</h1>').
+
+        Example:
+            >>> Html.header("Title", level=1)
+            '<h1>Title</h1>'
+        """
         return f'<h{level}>{text}</h{level}>'
 
     @staticmethod
-    def h1 (text):
+    def h1(text):
+        """Generate an H1 heading. See :meth:`header`."""
         return Html.header(text, level=1)
+
     @staticmethod
-    def h2 (text):
+    def h2(text):
+        """Generate an H2 heading. See :meth:`header`."""
         return Html.header(text, level=2)
+
     @staticmethod
-    def h3 (text):
+    def h3(text):
+        """Generate an H3 heading. See :meth:`header`."""
         return Html.header(text, level=3)
+
     @staticmethod
-    def h4 (text):
+    def h4(text):
+        """Generate an H4 heading. See :meth:`header`."""
         return Html.header(text, level=4)
+
     @staticmethod
-    def h5 (text):
+    def h5(text):
+        """Generate an H5 heading. See :meth:`header`."""
         return Html.header(text, level=5)
+
     @staticmethod
-    def h6 (text):
+    def h6(text):
+        """Generate an H6 heading. See :meth:`header`."""
         return Html.header(text, level=6)
 
     @staticmethod
     def link(href, text, class_name=None):
-        """Generates an HTML link."""
+        """
+        Generate an HTML anchor (link) element.
+
+        Args:
+            href (str): The link URL.
+            text (str): The link text displayed to the user.
+            class_name (str, optional): CSS class name to apply. Defaults to None.
+
+        Returns:
+            str: HTML anchor element string.
+        """
         class_attr = f' class="{class_name}"' if class_name else ''
         return f'<a href="{href}"{class_attr}>{text}</a>'
 
     @staticmethod
     def img(src, alt_text='Image'):
-        """Generates an HTML image."""
+        """
+        Generate an HTML image element.
+
+        Args:
+            src (str): The image source URL or path.
+            alt_text (str, optional): Alternative text for the image. Defaults to 'Image'.
+
+        Returns:
+            str: HTML image element string.
+        """
         return f'<img src="{src}" alt="{alt_text}"/>'
 
     @staticmethod
     def ul(items):
-        """Generates an unordered HTML list."""
+        """
+        Generate an unordered (bulleted) HTML list.
+
+        Args:
+            items (list[str]): List of items to include as list items.
+
+        Returns:
+            str: HTML unordered list string with <li> elements.
+        """
         list_items = '\n  '.join(f'<li>{item}</li>' for item in items)
         return f'<ul>\n  {list_items}\n</ul>'
 
     @staticmethod
     def ol(items):
-        """Generates an ordered HTML list."""
+        """
+        Generate an ordered (numbered) HTML list.
+
+        Args:
+            items (list[str]): List of items to include as list items.
+
+        Returns:
+            str: HTML ordered list string with <li> elements.
+        """
         list_items = '\n  '.join(f'<li>{item}</li>' for item in items)
         return f'<ol>\n  {list_items}\n</ol>'
 
     @staticmethod
     def blockquote(text):
-        """Generates an HTML blockquote."""
+        """
+        Generate an HTML blockquote element.
+
+        Args:
+            text (str): The quoted text.
+
+        Returns:
+            str: HTML blockquote element string.
+        """
         return f'<blockquote>{text}</blockquote>'
 
     @staticmethod
     def code(code, language=''):
-        """Generates an HTML code block."""
+        """
+        Generate an HTML code block element.
+
+        Args:
+            code (str): The code content.
+            language (str, optional): Programming language for syntax highlighting class.
+                Defaults to empty string.
+
+        Returns:
+            str: HTML pre/code element string.
+        """
         return f'<pre><code class="{language}">{code}\n</code></pre>'
 
     @staticmethod
     def hr():
-        """Generates a horizontal rule."""
+        """
+        Generate a horizontal rule (line break) element.
+
+        Returns:
+            str: HTML horizontal rule string.
+        """
         return '<hr/>'
 
     @staticmethod
     def br():
-        """Generates a line break."""
+        """
+        Generate a line break element.
+
+        Returns:
+            str: HTML line break string.
+        """
         return '<br/>'
+
     @staticmethod
     def nbsp(count=1):
-        """Generates non-breaking spaces."""
+        """
+        Generate non-breaking spaces.
+
+        Args:
+            count (int, optional): Number of non-breaking spaces to generate. Defaults to 1.
+
+        Returns:
+            str: HTML non-breaking space entities string.
+        """
         return '&nbsp;' * count
+
     @staticmethod
     def pagebreak(id: int = 1) -> str:
-        """Generates a page break."""
-        #return f'<div xmlns:epub="http://www.idpf.org/2007/ops" epub:type="pagebreak" title="{id}" id="{id}"/>'
+        """
+        Generate a page break element.
+
+        Creates a CSS-based page break that works in EPUB readers.
+
+        Args:
+            id (int, optional): Identifier for the page break (for reference). Defaults to 1.
+
+        Returns:
+            str: HTML div element with page-break styling.
+        """
         return '<div style="page-break-after: always;"></div>'
 
 # ------------------------------------- MarkdownConverter -------------------------------------
 
 class MarkdownConverter:
-    """Converts simple Markdown text to HTML."""
+    """
+    Convert simple Markdown syntax to HTML.
+
+    Provides methods to convert basic Markdown markup to HTML elements.
+    Supports headers, lists, code blocks, images, blockquotes, and text formatting.
+    """
 
     @staticmethod
     def strong_or_em(text):
-        """Replaces *text* with <strong> and _text_ with <em>."""
+        """
+        Replace Markdown bold and emphasis syntax with HTML tags.
+
+        Converts:
+            - *text* to <strong>text</strong>
+            - _text_ to <em>text</em>
+
+        Args:
+            text (str): Text containing Markdown formatting.
+
+        Returns:
+            str: Text with HTML formatting applied.
+
+        Example:
+            >>> MarkdownConverter.strong_or_em("This is *bold* and _italic_")
+            'This is <strong>bold</strong> and <em>italic</em>'
+        """
         text = re.sub(r'\*(.+?)\*', r'<strong>\1</strong>', text)
         text = re.sub(r'_(.+?)_', r'<em>\1</em>', text)
         return text
 
     @staticmethod
     def paragraphs(*texts):
-        """Generates multiple HTML paragraphs."""
+        """
+        Generate multiple HTML paragraphs from text strings.
+
+        Args:
+            *texts (str): Variable length argument list of paragraph texts.
+
+        Returns:
+            str: Multiple HTML paragraph elements joined with newlines.
+
+        Example:
+            >>> MarkdownConverter.paragraphs("First", "Second", "Third")
+            '<p>First</p>\\n<p>Second</p>\\n<p>Third</p>'
+        """
         return '\n'.join(Html.p(text) for text in texts)
 
     @staticmethod
     def convert(text):
-        """Converts Markdown text to HTML."""
+        """
+        Convert Markdown text to HTML.
+
+        Performs complete Markdown parsing and converts all supported Markdown
+        syntax to corresponding HTML elements.
+
+        Args:
+            text (str): Markdown-formatted text.
+
+        Returns:
+            str: HTML string with all Markdown elements converted.
+
+        Example:
+            >>> markdown = "# Title\\nThis is **bold** text"
+            >>> MarkdownConverter.convert(markdown)
+        """
         html = [line for line in MarkdownConverter.parse(text)]
         html = '\n'.join(html)
         return MarkdownConverter.strong_or_em(html)
 
     @staticmethod
-    def parse( text):
-        """Parses Markdown text and generates HTML structures."""
+    def parse(text):
+        """
+        Parse Markdown text and generate HTML structures.
+
+        Processes Markdown text line by line and yields HTML elements for:
+            - Headers (# to ######)
+            - Unordered lists (* items)
+            - Ordered lists (. or 1. items)
+            - Code blocks (``` ... ```)
+            - Images (![alt](url))
+            - Blockquotes (> text)
+            - Horizontal rules (---)
+            - Paragraphs (plain text)
+
+        Args:
+            text (str): Markdown-formatted text.
+
+        Yields:
+            str: HTML elements as strings.
+
+        Note:
+            This is a generator function that yields HTML elements
+            for each parsed Markdown block.
+        """
         lines = text.split('\n')
         i = 0
         buffer = []

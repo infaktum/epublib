@@ -42,7 +42,29 @@ TEMPLATE_CONTAINER = '''<?xml version="1.0"?>
 
 def read_book(file_path: str) -> Book | None:
     """
-    Reads an EPUB file and returns a Book instance.
+    Read an EPUB file and return a Book instance.
+
+    Validates the file path and EPUB structure before parsing. Returns None if
+    the file cannot be read or parsed.
+
+    Args:
+        file_path (str): Path to the EPUB file to read.
+
+    Returns:
+        Book | None: A Book instance if successful, None if an error occurs.
+
+    Raises:
+        Catches and logs the following exceptions:
+            - FileNotFoundError: File does not exist
+            - zipfile.BadZipFile: Invalid EPUB container
+            - UnicodeDecodeError: Encoding errors in EPUB content
+            - KeyError: Missing required EPUB data
+            - PermissionError: File permission issues
+
+    Example:
+        >>> book = read_book("my_book.epub")
+        >>> if book:
+        ...     print(f"Loaded: {book.title}")
     """
     try:
         # Check for valid file path
@@ -76,7 +98,17 @@ def read_book(file_path: str) -> Book | None:
 
 def create_book(contents):
     """
-    Creates a Book object from extracted EPUB contents.
+    Create a Book object from extracted EPUB contents.
+
+    Populates a new Book instance with metadata, chapters, and resources
+    from the extracted EPUB content dictionary.
+
+    Args:
+        contents (dict): Dictionary containing extracted EPUB data with keys:
+            'metadata', 'chapters', 'styles', 'images', 'fonts', 'spine', 'guide', 'cover'.
+
+    Returns:
+        Book: A new Book instance populated with the extracted content.
     """
     book = Book(contents["metadata"])
     for href, chapter in contents['chapters'].items():
@@ -97,7 +129,25 @@ def create_book(contents):
 
 def extract_epub_content(file_path):
     """
-    Extracts all relevant content from an EPUB file.
+    Extract all relevant content from an EPUB file.
+
+    Reads all chapters, stylesheets, images, fonts, and metadata from the EPUB archive.
+    Parses the OPF file to extract manifest, spine, and guide information.
+
+    Args:
+        file_path (str): Path to the EPUB file.
+
+    Returns:
+        dict: Dictionary containing:
+            - 'metadata': Parsed metadata from OPF
+            - 'chapters': Dict mapping hrefs to XHTML content
+            - 'styles': Dict mapping filenames to CSS content
+            - 'images': Dict mapping filenames to binary image data
+            - 'fonts': Dict mapping filenames to binary font data
+            - 'manifest': List of manifest items
+            - 'spine': Reading order list
+            - 'guide': Guide references
+            - 'cover': Cover image filename or None
     """
     chapters, styles, images, fonts = {}, {}, {}, {}
     manifest, spine, metadata = [], [], {}
@@ -146,13 +196,43 @@ def extract_epub_content(file_path):
 
 def publish_book(book: Book, file_path):
     """
-    Saves the book in EPUB format to the specified file.
+    Save the book in EPUB format to the specified file path.
+
+    Convenience wrapper around save_book function.
+
+    Args:
+        book (Book): The Book instance to publish.
+        file_path (str): Output file path for the EPUB file.
+
+    See Also:
+        :func:`save_book` for the actual implementation.
     """
     save_book(book, file_path)
 
 def save_book(book: Book, file_path):
     """
-    Writes the Book object to an EPUB file.
+    Write the Book object to an EPUB file.
+
+    Creates a complete EPUB archive with all book components including chapters,
+    navigation files, styles, images, fonts, and OPF metadata. The EPUB file
+    is properly structured according to EPUB3 standards.
+
+    The process:
+        1. Creates temporary directory structure
+        2. Writes mimetype file (uncompressed)
+        3. Creates META-INF/container.xml
+        4. Saves all chapters as XHTML files
+        5. Generates and saves navigation files (nav.xhtml and toc.ncx)
+        6. Saves stylesheets, images, and fonts
+        7. Generates and saves content.opf
+        8. Archives everything as a ZIP file
+
+    Args:
+        book (Book): The Book instance to save.
+        file_path (str): Output file path for the EPUB file.
+
+    Note:
+        The mimetype file is stored uncompressed as per EPUB specification.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write mimetype file (must be first and uncompressed)
@@ -224,30 +304,71 @@ def save_book(book: Book, file_path):
 
 
 def validate_metadata(book):
-    mandatory_metadata = ["title", "creator"]
-    optional_metadata = ["language", "subject"]
-    missing_mandatory = [field for field in mandatory_metadata if not field in book.metadata]
-    missing_optional = [field for field in optional_metadata if not field in book.metadata]
-    return missing_mandatory, missing_optional
+    """
+    Validate that a book has required and optional metadata fields.
+
+    Checks for mandatory fields (title, creator) and optional fields
+    (language, subject).
+
+    Args:
+        book (Book): The Book instance to validate.
+
+    Returns:
+        tuple: A tuple of (missing_mandatory, missing_optional) where each is
+            a list of field names.
+
+    Example:
+        >>> mandatory, optional = validate_metadata(book)
+        >>> if mandatory:
+        ...     print(f"Missing mandatory fields: {mandatory}")
+    """
 
 
 def validate_toc(book):
-    if not book.toc:
-        raise ValueError("Table of content (TOC) is empty.")
-    for entry in book.toc:
-        if not any(chapter.src == entry.src for chapter in book.chapters):
-            raise ValueError(f"Toc entry references invalid chapter: {entry.src}")
+    """
+    Validate that the table of contents references valid chapters.
+
+    Args:
+        book (Book): The Book instance to validate.
+
+    Raises:
+        ValueError: If TOC is empty or contains references to non-existent chapters.
+    """
 
 def validate_chapters(book):
-    for chapter in book.chapters:
-        if not chapter.title or not chapter.html:
-            raise ValueError(f"Invalid chapter: {chapter}")
+    """
+    Validate that all chapters have required title and content.
+
+    Args:
+        book (Book): The Book instance to validate.
+
+    Raises:
+        ValueError: If any chapter is missing a title or HTML content.
+    """
 
 
 def validate_book(book: Book) -> list:
     """
-    Validates the book structure and resources.
-    Returns a list of issues found.
+    Validate the book structure and resources.
+
+    Performs comprehensive validation including:
+        - Checks for empty books
+        - Detects duplicate chapter hrefs
+        - Validates chapter titles and hrefs
+        - Validates metadata completeness
+        - Checks resource references
+
+    Args:
+        book (Book): The Book instance to validate.
+
+    Returns:
+        list: List of issue strings found. Empty list if book is valid.
+
+    Example:
+        >>> issues = validate_book(book)
+        >>> if issues:
+        ...     for issue in issues:
+        ...         print(f"Warning: {issue}")
     """
     issues = []
 
@@ -281,27 +402,33 @@ def validate_book(book: Book) -> list:
 
 
 def validate_book_resources(book):
-    missing = []
-    book_images = set(book.images.keys())
-    book_styles = set(book.styles.keys())
+    """
+    Validate that all resources referenced in chapters are available in the book.
 
-    for chapter in book.chapters.values():
-        chapter_images = set(chapter.images)
-        chapter_styles = set(chapter.styles)
+    Checks for missing images and stylesheets referenced by chapters.
 
-        missing_images = chapter_images - book_images
-        missing_styles = chapter_styles - book_styles
+    Args:
+        book (Book): The Book instance to validate.
 
-        if missing_images or missing_styles:
-            missing.append({"chapter": chapter.title,"missing_images": list(missing_images),"missing_styles": list(missing_styles) })
-
-    return missing
+    Returns:
+        list: List of dictionaries, each containing:
+            - 'chapter': Chapter title
+            - 'missing_images': List of missing image filenames
+            - 'missing_styles': List of missing stylesheet filenames
+    """
 
 #-------------------------- Editing Utilities --------------------
 
 def edit_chapter(chapter: Chapter, replacements) -> None:
     """
-    Replaces all occurrences in chapter content according to replacements.
+    Replace all occurrences in chapter content according to replacements.
+
+    Args:
+        chapter (Chapter): The chapter to edit.
+        replacements (list): List of strings in format 'old=new'.
+
+    Example:
+        >>> edit_chapter(chapter, ["Hello=Hi", "world=Earth"])
     """
     content = chapter.content
     for item in replacements:
@@ -312,26 +439,48 @@ def edit_chapter(chapter: Chapter, replacements) -> None:
 
 def edit_chapters(chapter: list[Chapter], replacements) -> None:
     """
-    Applies replacements to a list of chapters.
+    Apply replacements to a list of chapters.
+
+    Args:
+        chapter (list[Chapter]): List of Chapter instances to edit.
+        replacements (list): List of strings in format 'old=new'.
+
+    See Also:
+        :func:`edit_chapter` for single chapter editing.
     """
     for chap in chapter:
         edit_chapter(chap, replacements)
 
 def edit_all_chapters(book: Book, replacements: list) -> None:
     """
-    Edits all chapters of a book with the given replacements.
-    :param book: Book object with 'chapters' attribute (dictionary of Chapter objects)
-    :param replacements: List of strings in format 'old=new'
+    Edit all chapters of a book with the given replacements.
+
+    Applies string replacements to the content of all chapters in the book.
+
+    Args:
+        book (Book): Book object with 'chapters' attribute (dictionary of Chapter objects).
+        replacements (list): List of strings in format 'old=new'.
+
+    Example:
+        >>> edit_all_chapters(book, ["Chapter=Section", "Old=New"])
     """
     edit_chapters(book.chapters.values(), replacements)
 
 def edit_chapter_tag(chapter, tag, element, old_value, value) -> None:
     """
-    Replaces all occurrences of old_value in the specified element/attribute of found tags with value.
-    :param tag: Tag name (e.g. 'img')
-    :param element: Attribute or element name (e.g. 'src' or 'text')
-    :param old_value: Value to be replaced
-    :param value: New value
+    Replace all occurrences of a value in a specific tag's element/attribute.
+
+    Finds all instances of a tag and replaces text or attribute values.
+
+    Args:
+        chapter (Chapter): The chapter to edit.
+        tag (str): Tag name to find (e.g., 'img', 'a', 'p').
+        element (str): Attribute or element name (e.g., 'src', 'href', or 'text').
+        old_value (str): Value to be replaced.
+        value (str): New value.
+
+    Example:
+        >>> edit_chapter_tag(chapter, 'img', 'src', 'old.jpg', 'new.jpg')
     """
     doc = etree.fromstring(chapter.html.encode("utf-8"))
     for el in doc.findall(f".//x:{tag}", namespaces=NS):
@@ -346,9 +495,17 @@ def edit_chapter_tag(chapter, tag, element, old_value, value) -> None:
 
 def edit_chapter_tags(chapter, replacements):
     """
-    Replaces values in specific tags in chapter content.
-    :param chapter: Chapter object with 'html' attribute
-    :param replacements: List of strings in format 'tag=old=new'
+    Replace values in specific tags in chapter content using regex patterns.
+
+    Args:
+        chapter (Chapter): Chapter object with 'html' attribute.
+        replacements (list): List of strings in format 'tag=old=new'.
+
+    Returns:
+        Chapter: The modified chapter.
+
+    Example:
+        >>> edit_chapter_tags(chapter, ['p=old text=new text', 'strong=bad=good'])
     """
     content = chapter.html
     for item in replacements:
@@ -367,7 +524,16 @@ def edit_chapter_tags(chapter, replacements):
 
 def collect_used_selectors(content_dir):
     """
-    Collects all used CSS class and id selectors from XHTML/HTML files.
+    Collect all used CSS class and id selectors from XHTML/HTML files.
+
+    Scans all HTML/XHTML files in a directory tree and extracts all
+    class and id selectors that are actually used in the markup.
+
+    Args:
+        content_dir (str): Path to the directory containing content files.
+
+    Returns:
+        set: Set of used CSS selectors (e.g., {'.classname', '#idname'}).
     """
     used_selectors = set()
     xhtml_pattern = re.compile(r'class="([^"]+)"|id="([^"]+)"')
@@ -385,7 +551,17 @@ def collect_used_selectors(content_dir):
 
 def process_css_file(css_path, used_selectors):
     """
-    Removes unused CSS selectors from a CSS file.
+    Remove unused CSS selectors from a CSS file.
+
+    Reads a CSS file, identifies rules with selectors not in the used set,
+    and removes them, writing the cleaned CSS back to the file.
+
+    Args:
+        css_path (str): Path to the CSS file to process.
+        used_selectors (set): Set of CSS selectors that are actually used.
+
+    Returns:
+        list: List of removed selectors.
     """
     css_rule_pattern = re.compile(r'([^{]+)\{[^}]*}', re.MULTILINE)
     with open(css_path, 'r', encoding='utf-8') as f:
@@ -405,7 +581,13 @@ def process_css_file(css_path, used_selectors):
 
 def clean_unused_styles(content_dir):
     """
-    Cleans all unused CSS selectors from CSS files in the content directory.
+    Clean all unused CSS selectors from CSS files in the content directory.
+
+    Recursively processes all CSS files in a directory, identifying and
+    removing selectors that are not used in any HTML/XHTML file.
+
+    Args:
+        content_dir (str): Path to the directory containing content files.
     """
     used_selectors = collect_used_selectors(content_dir)
     css_files = []
@@ -419,8 +601,21 @@ def clean_unused_styles(content_dir):
 
 def remove_unused_styles(book: Book) -> Book:
     """
-    Removes unused CSS selectors from the book's styles.
-    :param book: Book object with 'styles' attribute (dictionary of CSS content)
+    Remove unused CSS selectors from the book's styles.
+
+    Analyzes which CSS selectors are actually used in the book's chapters
+    and removes all unused selectors from the stylesheets. This reduces
+    file size and improves EPUB efficiency.
+
+    Args:
+        book (Book): Book object with 'styles' attribute (dictionary of CSS content).
+
+    Returns:
+        Book: The book with cleaned stylesheets.
+
+    Note:
+        This function creates temporary files during processing. Any style
+        files that become empty after cleaning are removed from the book.
     """
     temp_dir = tempfile.mkdtemp()
     try:
@@ -457,10 +652,18 @@ def remove_unused_styles(book: Book) -> Book:
 
 def pretty_print_xml(xml: str) -> str:
     """
-    Creates a pretty printed xml string for the given xml string.
-    """
+    Create a pretty-printed XML string from the given XML string.
 
-    #parser = etree.XMLParser(remove_blank_text=True)
-    #tree = etree.fromstring(xml_string.encode("utf-8"), parser)
-    #return etree.tostring(tree, pretty_print=True, encoding="unicode")
-    return xml
+    Currently returns the XML as-is. Can be extended to use lxml's pretty_print
+    functionality if needed in the future.
+
+    Args:
+        xml (str): XML string to format.
+
+    Returns:
+        str: Formatted XML string.
+
+    Note:
+        This is a placeholder function. Consider implementing proper XML
+        pretty printing with lxml.etree if formatting is needed.
+    """

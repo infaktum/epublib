@@ -61,33 +61,36 @@ NS = {"x": "http://www.w3.org/1999/xhtml"}
 # ---------------------------- EPUB Chapter Class -----------------------------------
 
 class Chapter:
-
     """
     Represents a single chapter (XHTML document) within the EPUB.
 
-    The Chapter can be referenced by its href.
     A Chapter in an EPUB book is an XHTML file which is rendered by ebook reader software.
-    The Chapter structure stores only the BODY content of this file, which can simply be modified
-    by accessing the content attribute. The HEAD part of the file is generated on the fly, by inserting
-    the stored title and stylesheet attributes in a template. This happens every time when the read-only
-    html property is accessed.
-    """
+    The Chapter structure stores only the BODY content of this file, which can be modified
+    by accessing the content attribute. The HEAD part of the file is generated on the fly by
+    inserting the stored title and stylesheet attributes in a template. This regeneration
+    occurs every time when the read-only html property is accessed.
 
-    # ---------------------------- Initialization ----------------------------
+    Attributes:
+        href (str): Filename inside the EPUB archive.
+        content (str): The HTML body content of the chapter.
+        styles (list[str]): List of stylesheet hrefs linked in the chapter head.
+    """
 
     def __init__(self, href: str, title: str) -> None:
         """
-        Initialize a new Chapter. The HTML content and styles can be set later.
-        - href: filename inside the EPUB
-        - title: chapter title
+        Initialize a new Chapter.
+
+        The HTML content and styles can be set later via the content attribute
+        and add_style method, or via factory methods.
+
+        Args:
+            href (str): Filename inside the EPUB archive.
+            title (str): Chapter title, displayed in the document head.
         """
         self.href = href
         self._title = title
         self.content = ""
         self.styles = []
-
-    # ---------------------------- Factory methods ----------------------------
-
 
     @classmethod
     def from_content(cls, href: str, title: str, content: str, styles: str | list[str] | None = None) -> "Chapter":
@@ -97,10 +100,20 @@ class Chapter:
         Strips any existing <body> tags and wraps the content in a full XHTML structure.
         If styles are provided, they are linked in the <head>.
 
-        - href: filename inside the EPUB
-        - title: chapter title
-        - content: raw HTML content (may include <body> tags)
-        - styles: list of styles hrefs or a single href as string
+        Args:
+            href (str): Filename inside the EPUB archive.
+            title (str): Chapter title.
+            content (str): Raw HTML content (may include <body> tags which will be stripped).
+            styles (str | list[str] | None, optional): List of stylesheet hrefs or a single href as string.
+                Defaults to None.
+
+        Returns:
+            Chapter: A new Chapter instance with the provided content.
+
+        Example:
+            >>> chapter = Chapter.from_content("chapter1.xhtml", "Chapter 1",
+            ...                                 "<p>Hello world</p>",
+            ...                                 ["styles.css"])
         """
         content = re.sub(r"</?body[^>]*>", "", content, flags=re.IGNORECASE).strip()
 
@@ -113,7 +126,23 @@ class Chapter:
     def from_xhtml(cls, href: str, html: str) -> "Chapter":
         """
         Create a Chapter instance from a raw XHTML string.
-        The parser is more stict than lxml.html and expects well-formed XML.
+
+        The parser is more strict than lxml.html and expects well-formed XML.
+        Uses etree.fromstring for parsing which enforces XML compliance.
+
+        Args:
+            href (str): Filename inside the EPUB archive.
+            html (str): Well-formed XHTML string.
+
+        Returns:
+            Chapter: A new Chapter instance parsed from the XHTML string.
+
+        Raises:
+            ValueError: If the HTML is not valid XHTML or cannot be parsed.
+
+        Note:
+            This method expects strict XML compliance. For more forgiving parsing,
+            use :meth:`from_html` instead.
         """
         try:
             doc = etree.fromstring(html.encode("utf-8"))
@@ -129,7 +158,20 @@ class Chapter:
     def from_html(cls, href: str, html: str) -> "Chapter":
         """
         Create a Chapter instance from a raw HTML string using lxml.html.
+
         The parser is more forgiving than etree and can handle typical HTML errors.
+        Automatically removes XML declarations if present.
+
+        Args:
+            href (str): Filename inside the EPUB archive.
+            html (str): HTML string (may contain typical HTML errors or XML declarations).
+
+        Returns:
+            Chapter: A new Chapter instance parsed from the HTML string.
+
+        Note:
+            This method removes XML declarations automatically, making it suitable
+            for non-strict HTML parsing. For strict XHTML validation, use :meth:`from_xhtml`.
         """
         # We remove xml declaration if present, as lxml.html does not handle it well.
         html = re.sub(r'^<\?xml[^>]+\?>', '', html).strip()
@@ -145,25 +187,46 @@ class Chapter:
 
     @classmethod
     def from_cover(cls, name: str) -> "Chapter":
-        """ Create a synthetic cover chapter. """
+        """
+        Create a synthetic cover chapter.
+
+        Generates a Chapter containing a cover image displayed at full width and height.
+
+        Args:
+            name (str): Filename of the cover image (used in the img src attribute).
+
+        Returns:
+            Chapter: A new Chapter instance with cover styling applied.
+        """
         html = Template(TEMPLATE_COVER).substitute(cover = name)
         return cls.from_xhtml("Cover.xhtml", html)
 
-    # ---------------------------- Head management ----------------------------
+    # Head management
 
     def add_style(self, style: str) -> None:
-        """ Add a stylesheet href to the chapter. """
+        """
+        Add a stylesheet href to the chapter.
+
+        Prevents duplicate stylesheets from being added.
+
+        Args:
+            style (str): The href of the stylesheet to add.
+        """
         if style not in self.styles:
             self.styles.append(style)
 
-    # ---------------------------- Content management ----------------------------
+    # Content management
 
     @property
     def html(self) -> str:
         """
-        Get the full chapter HTML including HEAD and BODY, by inserting the necessary data into the TEMPLATE_CHAPTER.
-        The HEAD is generated on the fly from the title and styles attributes.
-        The BODY is the stored content attribute.
+        Get the full chapter HTML including HEAD and BODY.
+
+        Generates the HEAD section on the fly from the title and styles attributes,
+        and combines it with the stored content attribute in the TEMPLATE_CHAPTER.
+
+        Returns:
+            str: Complete XHTML document as string.
         """
         stylesheets = "\n".join(f'<link rel="stylesheet" type="text/css" href="{sheet}"/>' for sheet in self.styles)
         body = self.content or ""
@@ -172,14 +235,23 @@ class Chapter:
 
     @property
     def title(self) -> str:
-        """Get the chapter title."""
+        """
+        Get the chapter title.
+
+        Returns:
+            str: The chapter title.
+        """
         return self._title
 
     @title.setter
     def title(self, title: str) -> None:
         """
-        Set the chapter title. The title tag in the head is set and the href is updated.
-        :param title: new title string
+        Set the chapter title and update the href accordingly.
+
+        The chapter href will be updated to "{title}.xhtml" to maintain consistency.
+
+        Args:
+            title (str): New title string.
         """
         self._title = title
         self.href = f"{title}.xhtml"
@@ -187,17 +259,25 @@ class Chapter:
     @property
     def images(self) -> list[str]:
         """
-        Returns all src strings from img tags in this chapter.
+        Get all image src attributes from img tags in this chapter.
+
+        Parses the chapter's HTML and extracts all src attributes from <img> elements.
+
+        Returns:
+            list[str]: List of image src paths referenced in this chapter.
         """
         doc = etree.fromstring(self.html.encode("utf-8"))
         imgs = doc.findall(".//x:img", namespaces=NS)
         return [img.get("src") for img in imgs if img.get("src")]
 
-    # ---------------------------- Debug representation ----------------------------
+    # Debug representation
 
     def __repr__(self) -> str:
         """
-        Compact debug string for the chapter.
+        Return a compact debug string representation of the chapter.
+
+        Returns:
+            str: Compact representation including title, href, and styles.
         """
         return f"Chapter(title={self.title}, href={self.href}, styles={self.styles})"
 
@@ -274,31 +354,43 @@ CALIBRE_METADATA = ['series', 'series_index']
 class Book:
     """
     Represents an EPUB book container holding:
-    - metadata: Dublin Core and custom metadata
-    - chapters: mapping of chapter href to Chapter instances
-    - styles: global CSS stylesheets
-    - images: image assets
-    - fonts: embedded font files
-    - guide: optional navigation aids
-    - cover: filename of the cover image
+
+    A Book instance manages all data needed for an EPUB publication:
+        - metadata: Dublin Core and custom metadata
+        - chapters: mapping of chapter href to Chapter instances
+        - styles: global CSS stylesheets
+        - images: image assets
+        - fonts: embedded font files
+        - guide: optional navigation aids
+        - cover: filename of the cover image
 
     Notes:
-    - A generated UUID is added as identifier if none is provided.
-    - Convenience properties expose common metadata as attributes.
-    -
+        - A generated UUID is added as identifier if none is provided.
+        - Convenience properties expose common metadata as attributes.
+        - All data are stored in memory. This includes chapters, style sheets, images,
+          and font data as binaries.
+        - Use :func:`publish_book` from the epub module to store all data in an EPUB file.
+          The necessary OPF file is then created on the fly from the data in the Book structure.
 
-    All data are stored in memory. This includes not only the chapters,
-    but also the style sheets and also the images and font data als binaries.
-
-    Use publish_book from the epub package to store all data in an EPUB file.
-    The necessary OPF file is then created on he fly from the data in the Book structure.
+    Attributes:
+        metadata (dict): Dublin Core and custom metadata key-value pairs.
+        chapters (dict): Mapping of href to Chapter instances.
+        styles (dict): Mapping of filename to CSS content.
+        images (dict): Mapping of filename to binary image data.
+        fonts (dict): Mapping of filename to binary font data.
+        guide (list): List of guide reference items.
+        cover (str): Filename of the cover image.
     """
 
     def __init__(self, metadata: dict | None = None) -> None:
         """
         Initialize a new Book with optional metadata dict.
+
         Ensures an 'identifier' exists by generating a UUID if missing.
-        :param metadata: Optional initial metadata dictionary. Metadata may be added later.
+
+        Args:
+            metadata (dict, optional): Initial metadata dictionary. Additional metadata
+                can be added later. Defaults to None.
         """
         self.metadata = metadata or {}
         self.chapters = {}
@@ -315,8 +407,10 @@ class Book:
     def from_contents(self, contents: dict) -> None:
         """
         Populate the Book from a contents dictionary, typically extracted from an existing EPUB.
-        The contents dict should have keys: 'metadata', 'chapters', 'styles', 'images', 'fonts', 'guide', 'cover'.
-        :param contents: Dictionary with book components.
+
+        Args:
+            contents (dict): Dictionary with book components. Should have keys:
+                'metadata', 'chapters', 'styles', 'images', 'fonts', 'guide', 'cover'.
         """
         self.metadata = contents.get("metadata", {})
         for chapter in contents.get("chapters", []):
@@ -331,11 +425,15 @@ class Book:
         if "cover" in contents:
             self.set_cover(contents["cover"])
 
-    # ---------------------------- Chapter management ----------------------------
+    # Chapter management
 
     def add_chapter(self, chapter: Chapter, href: str = None) -> None:
         """
         Add or replace a chapter using its href as the key.
+
+        Args:
+            chapter (Chapter): The chapter to add.
+            href (str, optional): Custom href to use as key. If None, uses chapter.href. Defaults to None.
         """
         if href:
             self.chapters[href] = chapter
@@ -345,6 +443,9 @@ class Book:
     def add_chapters(self, *chapters: Chapter) -> None:
         """
         Add multiple chapters in order.
+
+        Args:
+            *chapters (Chapter): Variable length argument list of Chapter instances to add.
         """
         for chapter in chapters:
             self.add_chapter(chapter)
@@ -352,66 +453,94 @@ class Book:
     def get_chapter(self, href):
         """
         Return the chapter by href or None if not found.
+
+        Args:
+            href (str): The href of the chapter to retrieve.
+
+        Returns:
+            Chapter | None: The chapter with the specified href, or None if not found.
         """
         return self.chapters.get(href)
 
-    # ---------------------------- Stylesheet management ----------------------------
+    # Stylesheet management
 
     def add_style(self, name: str, sheet: str) -> None:
         """
         Add a global stylesheet.
-        - name: target filename inside the EPUB
-        - sheet: CSS content (str or bytes)
+
+        Args:
+            name (str): Target filename inside the EPUB.
+            sheet (str | bytes): CSS content as string or bytes.
         """
         self.styles[name] = sheet
 
     def add_styles(self, styles: dict) -> None:
         """
         Add multiple styles from a dict of {name: sheet}.
+
+        Args:
+            styles (dict): Dictionary mapping stylesheet names to CSS content.
         """
         for name, sheet in styles.items():
             self.add_style(name, sheet)
 
     def add_style_from_file(self, file: str) -> None:
         """
-        Add a global stylesheet.
-        - file: path to a CSS file
-        Reads the file content and uses the filename (without extension) as the key.
+        Add a global stylesheet from a CSS file.
+
+        Reads the file content and uses the filename as the key.
+
+        Args:
+            file (str): Path to a CSS file.
         """
         with open(file, "r", encoding="utf-8") as f:
             self.styles[basename(file)] = f.read()
 
-    # ---------------------------- Image management ----------------------------
+    # Image management
 
     def add_image(self, name: str, image: bytes | bytearray) -> None:
         """
         Add an image asset.
-        - name: target filename inside the EPUB
-        - image: binary data (bytes/bytearray)
+
+        Args:
+            name (str): Target filename inside the EPUB.
+            image (bytes | bytearray): Binary image data.
         """
         self.images[name] = image
 
     def add_images(self, images: dict) -> None:
         """
         Add multiple images from a dict of {name: image}.
+
+        Args:
+            images (dict): Dictionary mapping image names to binary image data.
         """
         for name, image in images.items():
             self.add_image(name, image)
 
     def add_image_from_file(self, file: str) -> None:
         """
-        Add an image asset.
-        - file: image filename
+        Add an image asset from a file.
+
+        Reads the file as binary and uses the filename as the key.
+
+        Args:
+            file (str): Path to an image file.
         """
         with open(file, "rb") as f:
             self.images[basename(file)] = f.read()
 
-    # ---------------------------- Cover management ----------------------------
+    # Cover management
 
     def add_cover(self, cover: str, image: bytes | bytearray) -> None:
         """
         Add a cover image and set it as the book cover.
+
         Also prepends a synthetic 'Cover.xhtml' chapter.
+
+        Args:
+            cover (str): Filename of the cover image.
+            image (bytes | bytearray): Binary image data.
         """
         self.images[cover] = image
         self.set_cover(cover)
@@ -419,6 +548,9 @@ class Book:
     def set_cover(self, cover: str) -> None:
         """
         Set the cover image filename and ensure a cover chapter is the first entry.
+
+        Args:
+            cover (str): Filename of the cover image.
         """
         self.cover = cover
         cover_chapter = Chapter.from_cover(cover)
@@ -429,100 +561,205 @@ class Book:
     def cover_image(self) -> bytes | bytearray | None:
         """
         Return the raw cover image content.
+
+        Returns:
+            bytes | bytearray | None: The binary cover image data, or None if no cover is set.
         """
         return self.images[self.cover]
 
-    # ---------------------------- Font management ----------------------------
+    # Font management
 
     def add_font(self, name, font):
         """
         Add an embedded font file.
+
+        Args:
+            name (str): Target filename inside the EPUB.
+            font (bytes | bytearray): Binary font data.
         """
         self.fonts[name] = font
 
-    # ---------------------------- Metadata properties (Dublin Core) ----------------------------
+    # Metadata properties (Dublin Core)
 
     @property
     def title(self) -> str:
-        """Human-readable title of the book."""
+        """
+        Get the human-readable title of the book.
+
+        Returns:
+            str: The book title.
+        """
         return self.metadata.get("title", "")
 
     @title.setter
     def title(self, value: str) -> None:
+        """
+        Set the book title.
+
+        Args:
+            value (str): The new title.
+        """
         self.metadata["title"] = value.strip()
 
     @property
     def creator(self) -> str:
-        """Primary creator/author."""
+        """
+        Get the primary creator/author.
+
+        Returns:
+            str: The creator name.
+        """
         return self.metadata.get("creator")
 
     @creator.setter
     def creator(self, value: str) -> None:
+        """
+        Set the primary creator/author.
+
+        Args:
+            value (str): The creator/author name.
+        """
         self.metadata["creator"] = value.strip()
 
     @property
     def author(self) -> str:
-        """Primary creator/author."""
+        """
+        Get the primary creator/author (alias for creator).
+
+        Returns:
+            str: The creator name.
+        """
         return self.metadata.get("creator")
 
     @author.setter
     def author(self, value: str) -> None:
+        """
+        Set the primary creator/author (alias for creator).
+
+        Args:
+            value (str): The creator/author name.
+        """
         self.metadata["creator"] = value.strip()
 
     @property
     def language(self) -> str:
-        """Language code (e.g., 'en', 'de')."""
+        """
+        Get the language code.
+
+        Returns:
+            str: Language code (e.g., 'en', 'de').
+        """
         return self.metadata.get("language", "")
 
     @language.setter
     def language(self, value: str) -> None:
+        """
+        Set the language code.
+
+        Args:
+            value (str): Language code (e.g., 'en', 'de').
+        """
         self.metadata["language"] = value.strip()
 
     @property
     def identifier(self) -> str:
-        """Unique identifier (e.g., UUID, ISBN)."""
+        """
+        Get the unique identifier.
+
+        Returns:
+            str: Unique identifier (e.g., UUID, ISBN).
+        """
         return self.metadata.get("identifier", "")
 
     @identifier.setter
     def identifier(self, value: str) -> None:
+        """
+        Set the unique identifier.
+
+        Args:
+            value (str): Unique identifier (e.g., UUID, ISBN).
+        """
         self.metadata["identifier"] = value.strip()
 
     @property
     def description(self) -> str:
-        """Short description or abstract."""
+        """
+        Get the book description.
+
+        Returns:
+            str: Short description or abstract.
+        """
         return self.metadata.get("description", "")
 
     @description.setter
     def description(self, value: str) -> None:
+        """
+        Set the book description.
+
+        Args:
+            value (str): Short description or abstract.
+        """
         self.metadata["description"] = value.strip()
 
     @property
     def publisher(self) -> str:
-        """Publisher name."""
+        """
+        Get the publisher name.
+
+        Returns:
+            str: Publisher name.
+        """
         return self.metadata.get("publisher", "")
 
     @publisher.setter
     def publisher(self, value: str) -> None:
+        """
+        Set the publisher name.
+
+        Args:
+            value (str): Publisher name.
+        """
         self.metadata["publisher"] = value.strip()
 
     @property
     def date(self) -> str:
-        """Publication date as string (ISO\-8601 recommended)."""
+        """
+        Get the publication date.
+
+        Returns:
+            str: Publication date as string (ISO-8601 recommended).
+        """
         return self.metadata.get("date", "")
 
     @date.setter
     def date(self, value: str) -> None:
+        """
+        Set the publication date.
+
+        Args:
+            value (str): Publication date (ISO-8601 recommended).
+        """
         self.metadata["date"] = value.strip()
 
     @property
     def subject(self) -> list[str]:
-        """List of subjects/keywords."""
+        """
+        Get the list of subjects/keywords.
+
+        Returns:
+            set: Subject keywords.
+        """
         return self.metadata.get("subject", set())
 
     @subject.setter
     def subject(self, subjects: str | tuple[str]) -> None:
         """
-        Add  subject/keyword to the metadata.
+        Add subject/keyword to the metadata.
+
+        Multiple subjects can be added at once using a tuple.
+
+        Args:
+            subjects (str | tuple[str]): A single subject string or tuple of subjects.
         """
         if "subject" not in self.metadata:
             self.metadata["subject"] = set()
@@ -532,18 +769,30 @@ class Book:
             if subject.strip() :
                 self.metadata["subject"].add(subject.strip())
 
-    # ---------------------------- Calibre/extended metadata ----------------------------
+    # Calibre/extended metadata
 
     @property
     def series(self) -> str:
-        """Gibt den Seriennamen zurück."""
+        """
+        Get the series name.
+
+        Returns:
+            str: The name of the series this book belongs to.
+        """
         return self.metadata.get("series", "")
 
     @series.setter
     def series(self, value):
         """
-        Setzt den Seriennamen und optional den Index.
-        value: entweder String (nur Name) oder Tuple (Name, Index)
+        Set the series name and optionally the series index.
+
+        Args:
+            value (str | tuple): Either a string (series name only) or a tuple of
+                (series_name, series_index).
+
+        Example:
+            >>> book.series = "My Series"
+            >>> book.series = ("My Series", 1)
         """
         if isinstance(value, tuple):
             self.metadata["series"] = value[0].strip()
@@ -551,13 +800,16 @@ class Book:
                 self.metadata["series_index"] = value[1]
         else:
             self.metadata["series"].append(str(value).strip())
-            
 
-    # ---------------------------- Generic metadata helpers ----------------------------
+    # Generic metadata helpers
 
     def add_metadata(self, key, value):
         """
         Add or replace an arbitrary metadata key/value pair.
+
+        Args:
+            key (str): The metadata key.
+            value: The metadata value.
         """
         self.metadata[key] = value
 
@@ -565,7 +817,19 @@ class Book:
         self, creator=None, title=None, language="de", identifier=None,
         description=None, publisher=None, date=None):
         """
-        Bulk metadata setter. Only non\-empty values are applied.
+        Bulk metadata setter for common Dublin Core metadata.
+
+        Only non-empty values are applied. Useful for setting multiple metadata
+        fields at once during book initialization.
+
+        Args:
+            creator (str, optional): Creator/author name. Defaults to None.
+            title (str, optional): Book title. Defaults to None.
+            language (str, optional): Language code. Defaults to "de".
+            identifier (str, optional): Unique identifier. Defaults to None.
+            description (str, optional): Book description. Defaults to None.
+            publisher (str, optional): Publisher name. Defaults to None.
+            date (str, optional): Publication date. Defaults to None.
         """
         if creator:
             self.metadata["creator"] = creator.strip()
@@ -582,10 +846,18 @@ class Book:
         if date:
             self.metadata["date"] = date.strip()
 
-    # ---------------------------------- Create Nav.xhtml ---------------------------------------
+    # Navigation and table of contents properties
 
     @property
     def nav(self) -> str:
+        """
+        Generate the nav.xhtml content for EPUB3.
+
+        Creates the navigation document with table of contents and landmarks.
+
+        Returns:
+            str: XHTML content for nav.xhtml file.
+        """
         title = "Inhaltsverzeichnis" if self.language == "de" else "Table of Contents"
 
         nav_items = "\n".join(
@@ -595,14 +867,31 @@ class Book:
         nav = Template(TEMPLATE_NAV).substitute(title=title,nav_items=nav_items)
         return nav
 
-    # --------------------------------- Create TOC NCX -------------------------------------
+    # Table of contents properties
 
     @property
     def toc(self) -> str:
+        """
+        Generate the table of contents.
+
+        Alias for the ncx property.
+
+        Returns:
+            str: TOC NCX XML content.
+        """
         return self.ncx
 
     @property
     def ncx(self) -> str:
+        """
+        Generate the toc.ncx content for EPUB2 compatibility.
+
+        Creates the Navigation Center eXtended (NCX) document used for navigation
+        in EPUB2 and as a fallback in EPUB3.
+
+        Returns:
+            str: NCX XML content.
+        """
         title = "Inhaltsverzeichnis" if self.language == "de" else "Table of Contents"
 
         nav_points = ""
@@ -619,10 +908,22 @@ class Book:
 
         return toc
 
-    # -------------------------------------- Create Manifest----------------------------------------
+    # Manifest property
 
     @property
     def manifest(self) -> list:
+        """
+        Generate the manifest entries for the OPF file.
+
+        Creates a list of manifest item dictionaries for all chapters, styles,
+        images, and fonts in the book.
+
+        Returns:
+            list: List of manifest item dictionaries with keys 'id', 'href', and 'media-type'.
+
+        Note:
+            Cover images are marked with the 'cover-image' property.
+        """
         manifest = [{"id": f"{splitext(c.href)[0]}", "href": c.href, "media-type": "application/xhtml+xml"} for _, c in
                     self.chapters.items()]
         if self.cover:
@@ -639,11 +940,22 @@ class Book:
                      in enumerate(self.fonts)]
         return manifest
 
-    # ------------------------------------- Create OPF XML --------------------------------------
-
+    # OPF property
 
     @property
     def opf(self) -> str:
+        """
+        Generate the complete OPF (Open Packaging Format) XML content.
+
+        Creates the content.opf file which defines the EPUB package structure,
+        including metadata, manifest, spine, and guide sections.
+
+        Returns:
+            str: Complete OPF XML as a string.
+
+        Note:
+            The OPF file is the central descriptor of an EPUB archive structure.
+        """
 
         spine = [chapter.href for chapter in self.chapters.values() if
                  chapter.href != "nav.xhtml" and chapter.href != "toc.ncx"]
@@ -680,11 +992,14 @@ class Book:
 
         return opf
 
-    # ---------------------------- Debug representation ----------------------------
+    # Debug representation
 
     def __repr__(self):
         """
-        Compact debug string with selected metadata and asset counts.
+        Return a compact debug string representation of the book.
+
+        Returns:
+            str: Compact representation including title, author, and asset counts.
         """
         return (
             f"Book(title = {self.title}, author = {self.author}, "
@@ -697,28 +1012,48 @@ class Book:
 
 class Opf:
     """
-    A parser for the OPF file of an EPUB (content.opf). Parses the OPF XML and provides access to its components.
+    A parser for the OPF (Open Packaging Format) file of an EPUB (content.opf).
+
+    Parses the OPF XML and provides access to its components including metadata,
+    manifest items, spine references, and guide entries.
+
     Attributes:
-        xml (etree.Element): The root element of the OPF XML.
+        xml (etree.Element): The root element of the OPF XML document.
+
     Methods:
         manifest: Reads all <item> elements from <manifest> and returns them as a list of dicts.
         metadata: Returns all metadata tags from <metadata> as a dict {name: text}.
-        spine: Returns all idref values from <spine>/<itemref> as a list
+        spine: Returns all idref values from <spine>/<itemref> as a list.
         guide: Reads all <reference> elements from <guide> and returns them as a list of dicts.
+        cover: Returns the href of the cover image if marked with cover-image property.
     """
+
     def __init__(self, opf_xml) -> None:
         """
-            Initializes the Opf object by parsing the provided OPF XML string.
-            :param opf_xml: OPF XML as a string
+        Initialize an Opf parser by parsing the provided OPF XML string.
+
+        Args:
+            opf_xml (str): OPF XML as a string.
+
+        Raises:
+            etree.ParserError: If the XML cannot be parsed.
         """
         self.xml = etree.fromstring(opf_xml)
 
     @classmethod
     def from_file(cls, opf_file: str) -> "Opf":
         """
-        Creates an Opf instance by reading the contents of the Opf file.
-        :param opf_file: path to file.
-        :return: Opf instance
+        Create an Opf instance by reading the contents of an OPF file.
+
+        Args:
+            opf_file (str): Path to the OPF file.
+
+        Returns:
+            Opf: A new Opf instance parsed from the file.
+
+        Raises:
+            FileNotFoundError: If the file does not exist.
+            etree.ParserError: If the XML cannot be parsed.
         """
         with open(opf_file, "r", encoding="utf-8") as f:
             opf_xml = f.read()
@@ -727,7 +1062,13 @@ class Opf:
     @property
     def cover(self) -> str | None:
         """
-        Returns the href of the cover item from <manifest>, if present.
+        Get the href of the cover image.
+
+        Returns the href of the cover item from the <manifest> section if it has
+        the 'cover-image' property, otherwise returns None.
+
+        Returns:
+            str | None: The cover image href, or None if no cover is marked.
         """
         cover_item = self.xml.xpath(".//*[local-name()='manifest']/*[local-name()='item'][@properties='cover-image']")
         return cover_item[0].get("href") if cover_item else None
@@ -735,7 +1076,13 @@ class Opf:
     @property
     def guide(self) -> list[dict[str, str]]:
         """
-        Reads all <reference> elements from <guide> and returns them as a list of dicts.
+        Get all guide reference items from the OPF.
+
+        Reads all <reference> elements from the <guide> section and returns them
+        as a list of dictionaries with keys 'type', 'title', and 'href'.
+
+        Returns:
+            list[dict[str, str]]: List of guide reference items.
         """
         return [
             {"type": el.get("type"), "title": el.get("title"), "href": el.get("href")}
@@ -745,7 +1092,13 @@ class Opf:
     @property
     def manifest(self) -> list[dict[str, str]]:
         """
-        Reads all <item> elements from <manifest> and returns them as a list of dicts.
+        Get all manifest items from the OPF.
+
+        Reads all <item> elements from the <manifest> section and returns them as
+        a list of dictionaries with keys 'id', 'href', and 'media-type'.
+
+        Returns:
+            list[dict[str, str]]: List of manifest item dictionaries.
         """
         return [
             {"id": el.get("id"), "href": el.get("href"), "media-type": el.get("media-type")}
@@ -755,8 +1108,16 @@ class Opf:
     @property
     def metadata(self) -> dict[str, str | list[str]]:
         """
-        Gibt alle Metadaten-Tags aus <metadata> als Dict zurück.
-        Mehrfache <dc:subject>-Tags werden als Liste gesammelt.
+        Get all metadata from the OPF.
+
+        Reads all metadata elements from the <metadata> section and returns them as
+        a dictionary. Multiple <dc:subject> elements are collected into a set.
+
+        Returns:
+            dict[str, str | list[str]]: Dictionary with metadata key-value pairs.
+
+        Note:
+            Multiple subject tags are merged into a single 'subject' key containing a set.
         """
         meta = {}
         subjects = set()
@@ -776,7 +1137,13 @@ class Opf:
     @property
     def spine(self) -> list[str]:
         """
-        Returns all idref values from <spine>/<itemref> as a list.
+        Get all spine item references from the OPF.
+
+        Returns all idref values from <spine>/<itemref> elements, which define
+        the reading order of the document.
+
+        Returns:
+            list[str]: List of item idrefs in spine order.
         """
         return [
             el.get("idref")

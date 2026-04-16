@@ -1,7 +1,20 @@
-"""Top-level package for pypublib.
+"""
+Top-level package for pypublib.
 
-This file exposes commonly used submodules and classes so tests and users
-can import them as `from pypublib import Book` or `from pypublib.markdown import Html`.
+A Python library for creating and manipulating EPUB electronic publications.
+
+This module exposes commonly used classes and functions so users can import them
+as follows:
+
+    - ``from pypublib import Book`` - Import the Book class
+    - ``from pypublib import Chapter`` - Import the Chapter class
+    - ``from pypublib import read_book, publish_book`` - Import EPUB I/O functions
+    - ``from pypublib import Html`` - Import HTML generation utilities
+    - ``from pypublib import markdown`` - Import Markdown conversion module
+
+Attributes:
+    __version__ (str): Current version of pypublib.
+    __author__ (str): Primary author of pypublib.
 """
 
 __version__ = "0.1.1"

@@ -13,14 +13,14 @@
 
 
 This project provides tools and utilities for generating and manipulating EPUB files using Python. 
-It includes functions to create essential EPUB components such as `nav.xhtml`, `toc.ncx`, and the manifest, 
-making it easier to build valid EPUB 2 and EPUB 3 ebooks programmatically.
+It includes functions to create essential EPUB components such as `nav.xhtml`, `toc.ncx`, and the manifest, making it easier to build valid EPUB 2 and EPUB 3 ebooks programmatically.
+
+![Cover.jpg](docs/images/Cover.jpg)
 
 ## What is EPUB?
 
 EPUB (Electronic Publication) is a widely used open standard for e-books, maintained by the W3C. 
-EPUB files are essentially ZIP archives containing XHTML content, images, stylesheets, and metadata. 
-The format supports reflowable content, making it suitable for various screen sizes and devices.
+EPUB files are essentially ZIP archives containing XHTML content, images, stylesheets, and metadata. The format supports reflowable content, making it suitable for various screen sizes and devices.
 
 ## The structure of an EPUB file
 
