@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install sphinx sphinx_rtd_theme
+          python -m pip install -r requirements/docs.txt
 
       - name: Generate API docs with sphinx-apidoc (if modules exist)
         run: |
@@ -69,6 +69,3 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
-
-
-

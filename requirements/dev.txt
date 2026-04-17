@@ -1,0 +1,5 @@
+-r runtime.txt
+-r docs.txt
+pytest
+pytest-cov
+
