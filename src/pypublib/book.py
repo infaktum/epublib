@@ -20,286 +20,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import re
+
+from __future__ import annotations
+
 import uuid
 from os.path import splitext, basename
 from string import Template
+from typing import List, Dict
 
-import lxml.html as lhtml
 from lxml import etree
 
 import pypublib
+from pypublib.chapter import Chapter
 
 # ---------------------------------------- Logger ------------------------------------------------
 
 LOGGER = pypublib.get_logger(__name__)
-
-# ---------------------------- Template for a Cover Page -----------------------------------
-
-TEMPLATE_COVER = """<?xml version='1.0' encoding='utf-8'?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" lang="de" xml:lang="de">
-  <head>
-  <title>Cover</title>
- </head>
-  <body style='margin: 0em; padding: 0em;'>
-    <img style='max-width: 100%; max-height: 100%;' src="$cover" alt="Cover"/>
- </body>
-</html>
-"""
-
-TEMPLATE_CHAPTER = """<?xml version='1.0' encoding='utf-8'?>
-<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.1//EN' 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd'>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="de">
-<head>
-    <title>$title</title>
-    $styles
-</head>
-<body>
-    $body
-</body>
-</html>
-"""
-
-# ---------------------------- XML Namespace -----------------------------------
-
-NS = {"x": "http://www.w3.org/1999/xhtml"}
-
-
-# ---------------------------- EPUB Chapter Class -----------------------------------
-
-class Chapter:
-    """
-    Represents a single chapter (XHTML document) within the EPUB.
-
-    A Chapter in an EPUB book is an XHTML file which is rendered by ebook reader software.
-    The Chapter structure stores only the BODY content of this file, which can be modified
-    by accessing the content attribute. The HEAD part of the file is generated on the fly by
-    inserting the stored title and stylesheet attributes in a template. This regeneration
-    occurs every time when the read-only HTML property is accessed.
-
-    Attributes:
-        href (str): Filename inside the EPUB archive.
-        content (str): The HTML body content of the chapter.
-        styles (list[str]): List of stylesheet hrefs linked in the chapter head.
-    """
-
-    def __init__(self, href: str, title: str) -> None:
-        """
-        Initialize a new Chapter.
-
-        The HTML content and styles can be set later via the content attribute
-        and add_style method, or via factory methods.
-
-        Args:
-            href (str): Filename inside the EPUB archive.
-            title (str): Chapter title, displayed in the document head.
-        """
-        self.href = href
-        self._title = title
-        self.content = ""
-        self.styles = []
-
-    @classmethod
-    def from_content(cls, href: str, title: str, content: str, styles: str | list[str] | None = None) -> "Chapter":
-        """
-        Create a Chapter instance from raw HTML content string.
-
-        Strips any existing <body> tags and wraps the content in a full XHTML structure.
-        If styles are provided, they are linked in the <head>.
-
-        Args:
-            href (str): Filename inside the EPUB archive.
-            title (str): Chapter title.
-            content (str): Raw HTML content (may include <body> tags which will be stripped).
-            styles (str | list[str] | None, optional): List of stylesheet hrefs or a single href as string.
-                Defaults to None.
-
-        Returns:
-            Chapter: A new Chapter instance with the provided content.
-
-        Example:
-            >>> chapter = Chapter.from_content("chapter1.xhtml", "Chapter 1",
-            ...                                 "<p>Hello world</p>",
-            ...                                 ["styles.css"])
-        """
-        content = re.sub(r"</?body[^>]*>", "", content, flags=re.IGNORECASE).strip()
-
-        chapter = cls(href, title)
-        chapter.content = content
-        chapter.styles = styles if isinstance(styles, list) else ([styles] if styles else [])
-        return chapter
-
-    @classmethod
-    def from_xhtml(cls, href: str, html: str) -> "Chapter":
-        """
-        Create a Chapter instance from a raw XHTML string.
-
-        The parser is more strict than lxml.html and expects well-formed XML.
-        Uses etree.fromstring for parsing which enforces XML compliance.
-
-        Args:
-            href (str): Filename inside the EPUB archive.
-            html (str): Well-formed XHTML string.
-
-        Returns:
-            Chapter: A new Chapter instance parsed from the XHTML string.
-
-        Raises:
-            ValueError: If the HTML is not valid XHTML or cannot be parsed.
-
-        Note:
-            This method expects strict XML compliance. For more forgiving parsing,
-            use :meth:`from_html` instead.
-        """
-        try:
-            doc = etree.fromstring(html.encode("utf-8"))
-        except etree.ParserError as e:
-            raise ValueError(f"Invalid HTML: {e}") from e
-        title = (doc.find(".//x:title", namespaces=NS).text or "") if doc.find(".//x:title",
-                                                                               namespaces=NS) is not None else ""
-        styles = [link.get("href") for link in doc.findall(".//x:link[@rel='stylesheet']", namespaces=NS) if
-                  link.get("href")]
-        content = etree.tostring(doc.find(".//x:body", namespaces=NS), encoding="utf-8", method="html").decode("utf-8") \
-            if doc.find(".//x:body", namespaces=NS) is not None else ""
-        return cls.from_content(href, title, content, styles)
-
-    @classmethod
-    def from_html(cls, href: str, html: str) -> "Chapter":
-        """
-        Create a Chapter instance from a raw HTML string using lxml.html.
-
-        The parser is more forgiving than etree and can handle typical HTML errors.
-        Automatically removes XML declarations if present.
-
-        Args:
-            href (str): Filename inside the EPUB archive.
-            html (str): HTML string (may contain typical HTML errors or XML declarations).
-
-        Returns:
-            Chapter: A new Chapter instance parsed from the HTML string.
-
-        Note:
-            This method removes XML declarations automatically, making it suitable
-            for non-strict HTML parsing. For strict XHTML validation, use :meth:`from_xhtml`.
-        """
-        # We remove xml declaration if present, as lxml.html does not handle it well.
-        html = re.sub(r'^<\?xml[^>]+\?>', '', html).strip()
-        doc = lhtml.fromstring(html)
-
-        title_el = doc.find(".//title")
-        title = title_el.text if title_el is not None else ""
-        styles = [link.get("href") for link in doc.findall(".//link[@rel='stylesheet']") if link.get("href")]
-        body_el = doc.find(".//body")
-        content = lhtml.tostring(body_el, encoding="unicode", method="html") if body_el is not None else ""
-        return cls.from_content(href, title, content, styles)
-
-    @classmethod
-    def from_cover(cls, name: str) -> "Chapter":
-        """
-        Create a synthetic cover chapter.
-
-        Generates a Chapter containing a cover image displayed at full width and height.
-
-        Args:
-            name (str): Filename of the cover image (used in the img src attribute).
-
-        Returns:
-            Chapter: A new Chapter instance with cover styling applied.
-        """
-        html = Template(TEMPLATE_COVER).substitute(cover=name)
-        return cls.from_xhtml("Cover.xhtml", html)
-
-    # Head management
-
-    def add_style(self, style: str) -> None:
-        """
-        Add a stylesheet href to the chapter.
-
-        Prevents duplicate stylesheets from being added.
-
-        Args:
-            style (str): The href of the stylesheet to add.
-        """
-        if style not in self.styles:
-            self.styles.append(style)
-
-    # ----------------------------------- Content management -------------------------------------------
-
-    @property
-    def html(self) -> str:
-        """
-        Get the full chapter HTML including HEAD and BODY.
-
-        Generates the HEAD section on the fly from the title and styles attributes,
-        and combines it with the stored content attribute in the TEMPLATE_CHAPTER.
-
-        Returns:
-            str: Complete XHTML document as string.
-        """
-        stylesheets = "\n".join(f'<link rel="stylesheet" type="text/css" href="{sheet}"/>' for sheet in self.styles)
-        body = self.content or ""
-        html = Template(TEMPLATE_CHAPTER).substitute(title=self.title, styles=stylesheets, body=body)
-        return html
-
-    @html.setter
-    def html(self, page: str) -> None:
-        """
-        Sets the full chapter HTML including HEAD and BODY.
-
-        Returns:
-            str: Complete XHTML document as string.
-        """
-        self.html = page
-
-    @property
-    def title(self) -> str:
-        """
-        Get the chapter title.
-
-        Returns:
-            str: The chapter title.
-        """
-        return self._title
-
-    @title.setter
-    def title(self, title: str) -> None:
-        """
-        Set the chapter title and update the href accordingly.
-
-        The chapter href will be updated to "{title}.xhtml" to maintain consistency.
-
-        Args:
-            title (str): New title string.
-        """
-        self._title = title
-        self.href = f"{title}.xhtml"
-
-    @property
-    def images(self) -> list[str]:
-        """
-        Get all image src attributes from img tags in this chapter.
-
-        Parses the chapter's HTML and extracts all src attributes from <img> elements.
-
-        Returns:
-            list[str]: List of image src paths referenced in this chapter.
-        """
-        doc = etree.fromstring(self.html.encode("utf-8"))
-        imgs = doc.findall(".//x:img", namespaces=NS)
-        return [img.get("src") for img in imgs if img.get("src")]
-
-    # Debug representation
-
-    def __repr__(self) -> str:
-        """
-        Return a compact debug string representation of the chapter.
-
-        Returns:
-            str: Compact representation including title, href, and styles.
-        """
-        return f"Chapter(title={self.title}, href={self.href}, styles={self.styles})"
-
 
 # ---------------------------- Template for Navigation (nav.xhtml) ------------------------------
 
@@ -402,7 +138,7 @@ class Book:
         cover (str): Filename of the cover image.
     """
 
-    def __init__(self, metadata: dict | None = None) -> None:
+    def __init__(self, metadata: Dict | None = None) -> None:
         """
         Initialize a new Book with optional metadata dict.
 
@@ -423,7 +159,7 @@ class Book:
             self.identifier = "pypublib:" + str(uuid.uuid4())
         self.add_metadata("generator", "pypublib 0.1.0")
 
-    def from_contents(self, contents: dict) -> None:
+    def from_contents(self, contents: Dict) -> None:
         """
         Populate the Book from a contents dictionary, typically extracted from an existing EPUB.
 
@@ -444,11 +180,11 @@ class Book:
         if "cover" in contents:
             self.set_cover(contents["cover"])
 
-    # Chapter management
+    # ----------------------------- Chapter Management -------------------------------------
 
     def add_chapter(self, chapter: Chapter, href: str = None) -> None:
         """
-        Add or replace a chapter using its href as the key.
+        Add a new chapter, or replace a chapter using its href as the key.
 
         Args:
             chapter (Chapter): The chapter to add.
@@ -481,7 +217,7 @@ class Book:
         """
         return self.chapters.get(href)
 
-    # Stylesheet management
+    # ---------------------------- Stylesheet Management ----------------------------------
 
     def add_style(self, name: str, sheet: str) -> None:
         """
@@ -493,7 +229,7 @@ class Book:
         """
         self.styles[name] = sheet
 
-    def add_styles(self, styles: dict) -> None:
+    def add_styles(self, styles: Dict) -> None:
         """
         Add multiple styles from a dict of {name: sheet}.
 
@@ -515,7 +251,7 @@ class Book:
         with open(file, "r", encoding="utf-8") as f:
             self.styles[basename(file)] = f.read()
 
-    # Image management
+    # ------------------------------ Image Management -----------------------------------
 
     def add_image(self, name: str, image: bytes | bytearray) -> None:
         """
@@ -527,7 +263,7 @@ class Book:
         """
         self.images[name] = image
 
-    def add_images(self, images: dict) -> None:
+    def add_images(self, images: Dict) -> None:
         """
         Add multiple images from a dict of {name: image}.
 
@@ -549,7 +285,7 @@ class Book:
         with open(file, "rb") as f:
             self.images[basename(file)] = f.read()
 
-    # Cover management
+    # --------------------------------- Cover Management -------------------------------------
 
     def add_cover(self, cover: str, image: bytes | bytearray) -> None:
         """
@@ -586,7 +322,7 @@ class Book:
         """
         return self.images[self.cover]
 
-    # Font management
+    # ----------------------------- Font management --------------------------------------
 
     def add_font(self, name, font):
         """
@@ -598,7 +334,7 @@ class Book:
         """
         self.fonts[name] = font
 
-    # Metadata properties (Dublin Core)
+    # ------------------------- All Metadata Properties (Dublin Core - DC) ------------------------
 
     @property
     def title(self) -> str:
@@ -761,7 +497,7 @@ class Book:
         self.metadata["date"] = value.strip()
 
     @property
-    def subject(self) -> list[str]:
+    def subject(self) -> List[str]:
         """
         Get the list of subjects/keywords.
 
@@ -788,7 +524,7 @@ class Book:
             if subject.strip():
                 self.metadata["subject"].add(subject.strip())
 
-    # Calibre/extended metadata
+    # -------------------------  Calibre/Extended Metadata -------------------------------
 
     @property
     def series(self) -> str:
@@ -865,7 +601,7 @@ class Book:
         if date:
             self.metadata["date"] = date.strip()
 
-    # Navigation and table of contents properties
+    # -----------------------  Navigation and table of contents properties ----------------------------
 
     @property
     def nav(self) -> str:
@@ -885,8 +621,6 @@ class Book:
         )
         nav = Template(TEMPLATE_NAV).substitute(title=title, nav_items=nav_items)
         return nav
-
-    # Table of contents properties
 
     @property
     def toc(self) -> str:
@@ -928,10 +662,10 @@ class Book:
 
         return toc
 
-    # Manifest property
+    # ------------------------------------- Manifest ---------------------------------------
 
     @property
-    def manifest(self) -> list:
+    def manifest(self) -> List[Dict[str, str]]:
         """
         Generate the manifest entries for the OPF file.
 
@@ -961,7 +695,7 @@ class Book:
                      in enumerate(self.fonts)]
         return manifest
 
-    # OPF property
+    # ------------------------------------- OPF Property ----------------------------------------
 
     @property
     def opf(self) -> str:
@@ -1015,7 +749,7 @@ class Book:
 
         return opf
 
-    # Debug representation
+    # ----------------------------- Debug representation ---------------------------
 
     def __repr__(self):
         """
@@ -1031,7 +765,7 @@ class Book:
         )
 
 
-# ------------------------------------ OPF Parser -------------------
+# ------------------------------------ OPF Parser ---------------------------------------
 
 class Opf:
     """
@@ -1097,7 +831,7 @@ class Opf:
         return cover_item[0].get("href") if cover_item else None
 
     @property
-    def guide(self) -> list[dict[str, str]]:
+    def guide(self) -> List[Dict[str, str]]:
         """
         Get all guide reference items from the OPF.
 
@@ -1113,7 +847,7 @@ class Opf:
         ]
 
     @property
-    def manifest(self) -> list[dict[str, str]]:
+    def manifest(self) -> List[Dict[str, str]]:
         """
         Get all manifest items from the OPF.
 
@@ -1129,7 +863,7 @@ class Opf:
         ]
 
     @property
-    def metadata(self) -> dict[str, str | list[str]]:
+    def metadata(self) -> Dict[str, str | List[str]]:
         """
         Get all metadata from the OPF.
 
@@ -1158,7 +892,7 @@ class Opf:
         return meta
 
     @property
-    def spine(self) -> list[str]:
+    def spine(self) -> List[str]:
         """
         Get all spine item references from the OPF.
 
@@ -1173,3 +907,14 @@ class Opf:
             for el in self.xml.xpath(".//*[local-name()='spine']/*[local-name()='itemref']")
             if el.get("idref")
         ]
+
+    def __repr__(self) -> str:
+        """Return a compact debug representation of parsed OPF content."""
+        metadata = self.metadata
+        title = metadata.get("title", "")
+        creator = metadata.get("creator", "")
+        return (
+            f"Opf(title={title!r}, creator={creator!r}, cover={self.cover!r}, "
+            f"manifest={len(self.manifest)}, spine={len(self.spine)}, guide={len(self.guide)})"
+        )
+

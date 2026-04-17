@@ -1,12 +1,13 @@
-import unittest
 import os
 import tempfile
+import unittest
 import zipfile
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
-from pypublib import epub
-from pypublib.book import Book, Chapter
 
+from pypublib import epub
+from pypublib.book import Book
+from pypublib.chapter import Chapter
 
 MINIMAL_OPF = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\">
@@ -32,13 +33,15 @@ MINIMAL_XHTML = """<?xml version='1.0' encoding='utf-8'?>
 </html>
 """
 
+
 class TestEpub(unittest.TestCase):
     @patch("pypublib.epub.os.path.isfile", return_value=True)
     @patch("pypublib.epub.zipfile.is_zipfile", return_value=True)
     @patch("pypublib.epub.extract_epub_content")
     @patch("pypublib.epub.create_book")
     def test_read_book_success(self, mock_create_book, mock_extract, mock_is_zip, mock_is_file):
-        mock_extract.return_value = {"metadata": {}, "chapters": {}, "styles": {}, "images": {}, "fonts": {}, "spine": [], "guide": [], "cover": None}
+        mock_extract.return_value = {"metadata": {}, "chapters": {}, "styles": {}, "images": {}, "fonts": {},
+                                     "spine": [], "guide": [], "cover": None}
         mock_create_book.return_value = "BookObject"
         result = epub.read_book("dummy.epub")
         self.assertEqual(result, "BookObject")
@@ -54,15 +57,18 @@ class TestEpub(unittest.TestCase):
             "guide": [],
             "cover": None
         }
-        with patch("pypublib.epub.Chapter.from_html", return_value=Chapter.from_content("chapter1.html", "Chapter 1","<h1>Chapter 1</h1>")):
+        with patch("pypublib.epub.Chapter.from_html",
+                   return_value=Chapter.from_content("chapter1.html", "Chapter 1", "<h1>Chapter 1</h1>")):
             book = epub.create_book(contents)
             self.assertEqual(book.metadata["title"], "Test")
             self.assertIn("chapter1.html", book.chapters)
 
     @patch("pypublib.epub.zipfile.ZipFile")
     def test_extract_epub_content(self, mock_zip):
-        mock_zip.return_value.__enter__.return_value.namelist.return_value = ["OEBPS/content.opf", "OEBPS/chapter1.xhtml", "OEBPS/style.css"]
-        mock_zip.return_value.__enter__.return_value.read.side_effect = lambda name: b"<xml/>" if name.endswith("content.opf") else b"chapter" if name.endswith(".xhtml") else b"css"
+        mock_zip.return_value.__enter__.return_value.namelist.return_value = ["OEBPS/content.opf",
+                                                                              "OEBPS/chapter1.xhtml", "OEBPS/style.css"]
+        mock_zip.return_value.__enter__.return_value.read.side_effect = lambda name: b"<xml/>" if name.endswith(
+            "content.opf") else b"chapter" if name.endswith(".xhtml") else b"css"
         result = epub.extract_epub_content("dummy.epub")
         self.assertIn("chapters", result)
         self.assertIn("styles", result)
@@ -210,8 +216,6 @@ class TestEpub(unittest.TestCase):
         book = epub.create_book(contents)
         self.assertEqual(book.cover, "cover.jpg")
 
-
-
     def test_validate_metadata(self):
         book = MagicMock()
         book.metadata = {"title": "A"}
@@ -260,18 +264,6 @@ class TestEpub(unittest.TestCase):
         self.assertIn("missing.png", issues[0]["missing_images"])
         self.assertIn("missing.css", issues[0]["missing_styles"])
 
-    def test_validate_toc_empty_raises(self):
-        book = SimpleNamespace(toc=[], chapters=[])
-        with self.assertRaises(ValueError):
-            epub.validate_toc(book)
-
-    def test_validate_toc_invalid_reference_raises(self):
-        toc_entry = SimpleNamespace(src="missing.xhtml")
-        chapter = SimpleNamespace(src="other.xhtml")
-        book = SimpleNamespace(toc=[toc_entry], chapters=[chapter])
-        with self.assertRaises(ValueError):
-            epub.validate_toc(book)
-
     def test_validate_chapters_missing_data_raises(self):
         chapter = SimpleNamespace(title="", html="")
         book = SimpleNamespace(chapters=[chapter])
@@ -301,25 +293,25 @@ class TestEpub(unittest.TestCase):
         epub.edit_all_chapters(book, ["foo=bar"])
         self.assertEqual(chapter.content, "bar")
 
-
-
     def test_edit_chapter_tags(self):
         chapter = MagicMock()
         chapter.html = "<p>foo</p>"
         result = epub.edit_chapter_tags(chapter, ["p=foo=bar"])
         self.assertIn("bar", result.html)
 
-    def test_edit_chapter_tag_replaces_attribute_and_text_before_serialize_error(self):
-        chapter = MagicMock()
-        chapter.html = """<?xml version='1.0' encoding='utf-8'?>
-<html xmlns=\"http://www.w3.org/1999/xhtml\"><body>
-<a href=\"old-link\">old text</a></body></html>"""
+    def test_edit_chapter_tag_replaces_attribute_and_text(self):
+        chapter = Chapter.from_content(
+            "c.xhtml",
+            "T",
+            "<a href='old-link'>old text</a>",
+            [],
+        )
 
-        with self.assertRaises(AttributeError):
-            epub.edit_chapter_tag(chapter, "a", "href", "old", "new")
+        epub.edit_chapter_tag(chapter, "a", "href", "old", "new")
+        self.assertIn("href=\"new-link\"", chapter.html)
 
-        with self.assertRaises(AttributeError):
-            epub.edit_chapter_tag(chapter, "a", "text", "old", "new")
+        epub.edit_chapter_tag(chapter, "a", "text", "old", "new")
+        self.assertIn(">new text<", chapter.html)
 
     def test_collect_used_selectors_reads_html_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -393,7 +385,6 @@ class TestEpub(unittest.TestCase):
         with patch("pypublib.epub.os.walk", return_value=[("root", [], ["style.css"])]):
             epub.clean_unused_styles("content_dir")
             mock_process.assert_called()
-
 
 
 if __name__ == "__main__":

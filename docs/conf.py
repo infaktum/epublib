@@ -52,8 +52,6 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-# -- Options for HTML output -------------------------------------------------
-
 # Use a nicer theme (ReadTheDocs theme). Requires the `sphinx_rtd_theme`
 # package to be installed in the environment.
 try:
@@ -71,7 +69,4 @@ html_static_path = ['_static']
 
 autodoc_typehints = 'description'
 
-# When building docs on CI (or locally without all optional deps) some modules
-# like `pygame` are not available and cause autodoc import errors. Mock them
-# so the documentation build succeeds without installing heavy optional deps.
 autodoc_mock_imports = ['pygame']

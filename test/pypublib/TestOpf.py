@@ -76,5 +76,16 @@ class TestOpfMethods(unittest.TestCase):
         self.assertEqual(opf.guide, [])
         self.assertEqual(opf.spine, ["c1"])
 
+    def test_repr_contains_debug_summary(self):
+        representation = repr(self.opf)
+
+        self.assertIn("Opf(", representation)
+        self.assertIn("title='Buchtitel'", representation)
+        self.assertIn("creator='Autor'", representation)
+        self.assertIn("cover='cover.png'", representation)
+        self.assertIn("manifest=2", representation)
+        self.assertIn("spine=1", representation)
+        self.assertIn("guide=1", representation)
+
 if __name__ == "__main__":
     unittest.main()

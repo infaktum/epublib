@@ -28,7 +28,9 @@ import zipfile
 from lxml import etree
 
 import pypublib
-from pypublib.book import Book, Chapter, Opf, NS
+from pypublib.book import Book
+from pypublib.book import Opf
+from pypublib.chapter import Chapter, NS
 
 # ---------------------------------------- Logger ------------------------------------------------
 
@@ -335,7 +337,7 @@ def validate_metadata(book):
       Example:
           >>> mandatory, optional = validate_metadata(book)
           >>> if mandatory:
-          ...     print(f"Missing mandatory fields: {mandatory}")
+          ...     print(f'Missing mandatory fields: {mandatory}')
       """
     mandatory_metadata = ["title", "creator"]
     optional_metadata = ["language", "subject"]
@@ -344,24 +346,7 @@ def validate_metadata(book):
     return missing_mandatory, missing_optional
 
 
-def validate_toc(book):
-    """
-    Validate that the table of contents references valid chapters.
-
-    Args:
-        book (Book): The Book instance to validate.
-
-    Raises:
-        ValueError: If TOC is empty or contains references to non-existent chapters.
-    """
-    if not book.toc:
-        raise ValueError("Table of content (TOC) is empty.")
-    for entry in book.toc:
-        if not any(chapter.src == entry.src for chapter in book.chapters):
-            raise ValueError(f"Toc entry references invalid chapter: {entry.src}")
-
-
-def validate_chapters(book):
+def validate_chapters(book: Book) -> None:
     """
     Validate that all chapters have required title and content.
 
@@ -394,10 +379,10 @@ def validate_book(book: Book) -> list:
         list: List of issue strings found. Empty list if book is valid.
 
     Example:
-        >>> issues = validate_book(book)
+        >>> book_issues = validate_book(book)
         >>> if issues:
-        ...     for issue in issues:
-        ...         print(f"Warning: {issue}")
+        ...     for issue in book_issues:
+        ...         print(f'Warning: {issue}')
     """
     issues = []
 
@@ -540,7 +525,8 @@ def edit_chapter_tag(chapter, tag, element, old_value, value) -> None:
             attr = el.get(element)
             if attr and old_value in attr:
                 el.set(element, attr.replace(old_value, value))
-    chapter.html = Chapter.serialize(doc)
+
+    chapter.html = etree.tostring(doc, encoding="unicode", method="html")
 
 
 def edit_chapter_tags(chapter, replacements):
@@ -696,8 +682,8 @@ def remove_unused_styles(book: Book) -> Book:
         for root, dirs, files in os.walk(temp_dir, topdown=False):
             for file in files:
                 os.remove(os.path.join(root, file))
-            for dir in dirs:
-                os.rmdir(os.path.join(root, dir))
+            for d in dirs:
+                os.rmdir(os.path.join(root, d))
         os.rmdir(temp_dir)
     return book
 
