@@ -3,9 +3,10 @@ Documentation of PyPubLib
 
 .. toctree::
    :maxdepth: 2
+   :caption: Navigation
 
-   README
-   api/modules
+   About PyPubLib <README>
+   API reference <api/modules>
 
 
 
