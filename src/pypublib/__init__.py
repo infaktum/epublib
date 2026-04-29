@@ -41,6 +41,39 @@ def get_logger(name: str):
     return logging.getLogger(f"pypublib.{name}")
 
 
+def configure_logging(
+    log_level: int = logging.INFO,
+    *,
+    stream=None,
+    formatter: Optional[logging.Formatter] = None,
+    force: bool = False,
+) -> logging.Logger:
+    """Configure the package logger with a console handler when needed.
+
+    If only the default ``NullHandler`` is present, it is replaced by a
+    ``StreamHandler`` so ``LOGGER.info(...)`` becomes visible without requiring
+    the application to configure logging first.
+    """
+    pkg_logger = _pypublib_logger
+    pkg_logger.setLevel(log_level)
+
+    has_real_handler = any(not isinstance(handler, logging.NullHandler) for handler in pkg_logger.handlers)
+    if force:
+        has_real_handler = False
+
+    if not has_real_handler:
+        for handler in list(pkg_logger.handlers):
+            pkg_logger.removeHandler(handler)
+
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(log_level)
+        handler.setFormatter(formatter or logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+        pkg_logger.addHandler(handler)
+        pkg_logger.propagate = False
+
+    return pkg_logger
+
+
 # -------------------------------- Imports ---------------------------------
 
 from . import epub as epub
@@ -56,6 +89,7 @@ __all__ = [
     "__author__",
     "logger",
     "get_logger",
+    "configure_logging",
     "init",
     "is_initialized",
     "epub",
@@ -84,7 +118,7 @@ def init(settings: Optional[Dict[str, Any]] = None, *, log_level: Optional[int] 
     cfg = {**settings}
 
     if log_level is not None:
-        _pypublib_logger.setLevel(log_level)
+        configure_logging(log_level)
         cfg["log_level"] = log_level
 
     _config = cfg

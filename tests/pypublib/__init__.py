@@ -39,6 +39,34 @@ def get_logger(name: str):
     return logging.getLogger(f"pypublib.{name}")
 
 
+def configure_logging(
+        log_level: int = logging.INFO,
+        *,
+        stream=None,
+        formatter: Optional[logging.Formatter] = None,
+        force: bool = False,
+) -> logging.Logger:
+    """Configure the package logger with a visible stream handler."""
+    pkg_logger = logger
+    pkg_logger.setLevel(log_level)
+
+    has_real_handler = any(not isinstance(handler, logging.NullHandler) for handler in pkg_logger.handlers)
+    if force:
+        has_real_handler = False
+
+    if not has_real_handler:
+        for handler in list(pkg_logger.handlers):
+            pkg_logger.removeHandler(handler)
+
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(log_level)
+        handler.setFormatter(formatter or logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+        pkg_logger.addHandler(handler)
+        pkg_logger.propagate = False
+
+    return pkg_logger
+
+
 def init(
         settings: Optional[Dict[str, Any]] = None,
         *,
@@ -57,7 +85,7 @@ def init(
 
     cfg = dict(settings or {})
     if log_level is not None:
-        logger.setLevel(log_level)
+        configure_logging(log_level)
         cfg["log_level"] = log_level
 
     _config = cfg
@@ -112,10 +140,12 @@ book = _load_public_module("book")
 epub = _load_public_module("epub")
 edit = _load_public_module("edit")
 markdown = _load_public_module("markdown")
+mobi = _load_public_module("mobi")
 
 from pypublib.book import Book
 from pypublib.chapter import Chapter
 from pypublib.epub import publish_book, read_book
+from pypublib.mobi import MobiParser
 from pypublib.markdown import Html
 
 __all__ = [
@@ -123,6 +153,7 @@ __all__ = [
     "__author__",
     "logger",
     "get_logger",
+    "configure_logging",
     "init",
     "is_initialized",
     "epub",
@@ -134,5 +165,7 @@ __all__ = [
     "Book",
     "Chapter",
     "markdown",
+    "mobi",
     "Html",
+    "MobiParser",
 ]
