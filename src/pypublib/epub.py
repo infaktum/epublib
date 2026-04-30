@@ -21,20 +21,19 @@
 # SOFTWARE.
 
 import os
-
 import tempfile
 import zipfile
 from pathlib import Path
 from typing import Dict
 
-import logging
-from pypublib.book import Book
-from pypublib.book import Opf
-from pypublib.chapter import Chapter
+from . import get_logger
+from .book import Book
+from .book import Opf
+from .chapter import Chapter
 
 # ---------------------------------------- Logger ------------------------------------------------
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 # ------------------------------------- Templates -----------------------
 

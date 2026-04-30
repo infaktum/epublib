@@ -23,19 +23,15 @@
 import os
 import re
 import tempfile
-from typing import TYPE_CHECKING
 
-import pypublib
 
-# Delay heavy imports to runtime so tests that only import this module
-# won't fail if optional dependencies (like lxml) are missing.
-if TYPE_CHECKING:
-    from pypublib.book import Book
-    from pypublib.chapter import Chapter
+from . import get_logger
+from .book import Book
+from .chapter import Chapter
 
 # ---------------------------------------- Logger ------------------------------------------------
 
-LOGGER = pypublib.get_logger(__name__)
+LOGGER = get_logger(__name__)
 
 
 # -------------------------- Editing Utilities --------------------
@@ -108,7 +104,7 @@ def edit_chapter_tag(chapter, tag, element, old_value, value) -> None:
     """
     # Import lxml and chapter namespace lazily to avoid hard dependency at import-time
     from lxml import etree  # type: ignore
-    from pypublib.chapter import NS  # local import to prevent circular imports at module import
+    from .chapter import NS  # local import to prevent circular imports at module import
 
     doc = etree.fromstring(chapter.html.encode("utf-8"))
     for el in doc.findall(f".//x:{tag}", namespaces=NS):
@@ -308,8 +304,6 @@ def clean_unused_styles(content_dir):
         for file in files:
             if file.endswith('.css'):
                 css_files.append(os.path.join(root, file))
-    # Call through to epub.process_css_file so tests can patch the function
-    import pypublib.epub as _epub
     for css in css_files:
         process_css_file(css, used_selectors)
 
@@ -340,8 +334,6 @@ def remove_unused_styles(book: "Book") -> "Book":
             with open(style_path, "w", encoding="utf-8") as f:
                 f.write(sheet)
 
-        # Clean unused styles via epub wrapper so tests can patch it
-        import pypublib.epub as _epub
         clean_unused_styles(temp_dir)
 
         # Load cleaned styles back into the book

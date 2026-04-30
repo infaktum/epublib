@@ -31,11 +31,11 @@ from typing import List
 import lxml.html as lhtml
 from lxml import etree
 
-import logging
+from . import get_logger
 
 # ---------------------------------------- Logger ------------------------------------------------
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 # ---------------------------- Template for a Cover Page -----------------------------------
 

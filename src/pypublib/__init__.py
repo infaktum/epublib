@@ -35,6 +35,24 @@ if not _pypublib_logger.handlers:
     _pypublib_logger.addHandler(logging.NullHandler())
 
 
+def _ensure_console_handler(log_level: int) -> None:
+    """Attach a console handler when no real handler is configured yet."""
+    has_real_handler = any(not isinstance(handler, logging.NullHandler) for handler in _pypublib_logger.handlers)
+    if has_real_handler:
+        _pypublib_logger.setLevel(log_level)
+        return
+
+    for handler in list(_pypublib_logger.handlers):
+        _pypublib_logger.removeHandler(handler)
+
+    handler = logging.StreamHandler()
+    handler.setLevel(log_level)
+    handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    _pypublib_logger.addHandler(handler)
+    _pypublib_logger.setLevel(log_level)
+    _pypublib_logger.propagate = False
+
+
 def get_logger(name: str):
     if isinstance(name, str) and name.startswith("pypublib"):
         return logging.getLogger(name)
@@ -83,8 +101,10 @@ def init(settings: Optional[Dict[str, Any]] = None, *, log_level: Optional[int] 
 
     cfg = {**settings}
 
+    effective_log_level = log_level if log_level is not None else (_pypublib_logger.level or logging.INFO)
+    _ensure_console_handler(effective_log_level)
+
     if log_level is not None:
-        _pypublib_logger.setLevel(log_level)
         cfg["log_level"] = log_level
 
     _config = cfg

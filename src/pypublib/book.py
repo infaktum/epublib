@@ -28,13 +28,13 @@ from os.path import splitext, basename
 from string import Template
 from typing import List, Dict
 
-import logging
+from . import get_logger
 from lxml import etree
-from pypublib.chapter import Chapter
+from .chapter import Chapter
 
 # ---------------------------------------- Logger ------------------------------------------------
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 # ---------------------------- Template for Navigation (nav.xhtml) ------------------------------
 
@@ -562,8 +562,8 @@ class Book:
                 (series_name, series_index).
 
         Example:
-            >>> pypublib.book.series = "My Series"
-            >>> pypublib.book.series = ("My Series", 1)
+            >>> book.series = "My Series"
+            >>> book.series = ("My Series", 1)
         """
         if isinstance(value, tuple):
             self.metadata["series"] = value[0].strip()
